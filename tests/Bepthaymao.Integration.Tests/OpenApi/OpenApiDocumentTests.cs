@@ -19,6 +19,18 @@ public sealed class OpenApiDocumentTests
     }
 
     [Fact]
+    public void ProblemSchemaPublishesRequiredIdentifiers()
+    {
+        using JsonDocument document = JsonDocument.Parse(ReadCommittedDocument());
+        JsonElement schema = document.RootElement.GetProperty("components").GetProperty("schemas").GetProperty("ProblemDetails");
+        string[] required = schema.GetProperty("required").EnumerateArray().Select(value => value.GetString() ?? "").ToArray();
+        Assert.Contains("correlationId", required);
+        Assert.Contains("title", required);
+        Assert.Contains("status", required);
+        Assert.Equal("string", schema.GetProperty("properties").GetProperty("traceId").GetProperty("type").GetString());
+    }
+
+    [Fact]
     public async Task RuntimeDocumentMatchesCommittedFile()
     {
         await using ApiFactory factory = new();
