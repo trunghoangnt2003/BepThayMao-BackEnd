@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Formatting.Compact" />
     <ProjectReference Include="../Bepthaymao.Application/Bepthaymao.Application.csproj" />
     <ProjectReference Include="../Bepthaymao.Domain/Bepthaymao.Domain.csproj" />
   </ItemGroup>

@@ -14,5 +14,40 @@
       "url": "/"
     }
   ],
-  "paths": { }
+  "paths": { },
+  "components": {
+    "schemas": {
+      "ProblemDetails": {
+        "required": [
+          "title",
+          "status",
+          "correlationId"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "traceId": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
 }
