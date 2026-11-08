@@ -61,10 +61,10 @@ try {
   if (valid.status !== 0) throw new Error('Conventional Commit rejected.');
   console.log(`commit-message | commitlint | ĐỎ ĐÚNG | ${evidence}`);
   const secretPath = 'drill-secret.txt';
-  withFiles(root, { [secretPath]: 'ghp_' + randomBytes(27).toString('base64url') + '\n' }, () => {
+  withFiles(root, { [secretPath]: 'ghp_' + randomBytes(18).toString('hex') + '\n' }, () => {
     try {
       if (git('add', '--', secretPath).status !== 0) throw new Error('Cannot stage secret probe.');
-      const proof = assertRed(run(process.execPath, ['scripts/scan-secrets.mjs', '--staged']), /leaks found/);
+      const proof = assertRed(run(process.execPath, ['scripts/scan-secrets.mjs', '--staged']), /leaks found:\s*[1-9]/);
       console.log(`secret-in-diff | gitleaks --staged | ĐỎ ĐÚNG | ${proof}`);
     } finally {
       if (git('reset', '-q', 'HEAD', '--', secretPath).status !== 0) throw new Error('Cannot unstage secret probe.');
