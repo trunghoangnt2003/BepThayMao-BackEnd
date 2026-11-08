@@ -1,0 +1,11 @@
+Bếp Thầy Mão — thông báo thành phần bên thứ ba
+
+Hạ tầng dự kiến trong Phase 1:
+- PostgreSQL: PostgreSQL License.
+- Redis 8: chọn AGPLv3 trong các lựa chọn giấy phép Redis 8; dùng bản nguyên
+  gốc, không sửa mã, giao tiếp qua giao thức mạng. Lựa chọn chờ xác nhận pháp lý.
+  Valkey (BSD) là phương án dự phòng cho Phase 6.
+- RabbitMQ: MPL-2.0.
+- Traefik: MIT.
+
+Các thành phần giữ giấy phép và bản quyền riêng; tệp này không thay thế chúng.

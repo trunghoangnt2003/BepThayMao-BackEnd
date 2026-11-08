@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Bepthaymao.Api/Bepthaymao.Api.csproj" />
+    <Project Path="src/Bepthaymao.Application/Bepthaymao.Application.csproj" />
+    <Project Path="src/Bepthaymao.Domain/Bepthaymao.Domain.csproj" />
+    <Project Path="src/Bepthaymao.Infrastructure/Bepthaymao.Infrastructure.csproj" />
+    <Project Path="src/Bepthaymao.Worker/Bepthaymao.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Bepthaymao.Architecture.Tests/Bepthaymao.Architecture.Tests.csproj" />
+  </Folder>
+</Solution>

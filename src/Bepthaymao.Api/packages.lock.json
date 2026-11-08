@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "dependencies": {
+    "net10.0": {
+      "bepthaymao.application": {
+        "type": "Project",
+        "dependencies": {
+          "Bepthaymao.Domain": "[1.0.0, )"
+        }
+      },
+      "bepthaymao.domain": {
+        "type": "Project"
+      },
+      "bepthaymao.infrastructure": {
+        "type": "Project",
+        "dependencies": {
+          "Bepthaymao.Application": "[1.0.0, )",
+          "Bepthaymao.Domain": "[1.0.0, )"
+        }
+      }
+    }
+  }
+}

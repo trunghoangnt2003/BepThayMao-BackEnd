@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="NetArchTest.Rules" />
+    <ProjectReference Include="../../src/Bepthaymao.Domain/Bepthaymao.Domain.csproj" />
+    <ProjectReference Include="../../src/Bepthaymao.Application/Bepthaymao.Application.csproj" />
+    <ProjectReference Include="../../src/Bepthaymao.Infrastructure/Bepthaymao.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/Bepthaymao.Api/Bepthaymao.Api.csproj" />
+    <ProjectReference Include="../../src/Bepthaymao.Worker/Bepthaymao.Worker.csproj" />
+  </ItemGroup>
+</Project>
