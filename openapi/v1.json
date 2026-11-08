@@ -1,0 +1,18 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Bepthaymao Ordering API",
+    "description": "API công khai nhận đơn đa cơ sở. Phiên bản nằm trong đường dẫn (/api/v1).",
+    "contact": {
+      "name": "Đội phát triển Bếp Thầy Mão",
+      "url": "https://github.com/thanglm240723/BepThayMao-Spec"
+    },
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "paths": { }
+}

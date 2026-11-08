@@ -1,1 +1,1 @@
-node scripts/check-branch-name.mjs && npm run lint && npm run test:fast
+node scripts/check-branch-name.mjs && npm run lint && npm run openapi:check && npm run test:fast

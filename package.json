@@ -13,7 +13,8 @@
     "test:fast": "dotnet test --project tests/Bepthaymao.Architecture.Tests",
     "test:scripts": "node --test scripts/lib/*.test.mjs",
     "drill": "node scripts/red-drill.mjs",
-    "secrets:scan": "node scripts/scan-secrets.mjs"
+    "secrets:scan": "node scripts/scan-secrets.mjs",
+    "openapi:check": "node scripts/openapi-check.mjs"
   },
   "devDependencies": {
     "husky": "9.1.7",

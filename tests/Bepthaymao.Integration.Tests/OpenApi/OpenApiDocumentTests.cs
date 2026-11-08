@@ -1,0 +1,35 @@
+using System.Text.Json;
+using Bepthaymao.Integration.Tests.Infrastructure;
+
+namespace Bepthaymao.Integration.Tests.OpenApi;
+
+public sealed class OpenApiDocumentTests
+{
+    [Fact]
+    public void CommittedDocumentHasContractInfo()
+    {
+        using JsonDocument document = JsonDocument.Parse(ReadCommittedDocument());
+        JsonElement root = document.RootElement;
+        JsonElement info = root.GetProperty("info");
+        Assert.StartsWith("3.1", root.GetProperty("openapi").GetString());
+        Assert.Equal("Bepthaymao Ordering API", info.GetProperty("title").GetString());
+        Assert.Equal("1.0.0", info.GetProperty("version").GetString());
+        Assert.Equal("Đội phát triển Bếp Thầy Mão", info.GetProperty("contact").GetProperty("name").GetString());
+        Assert.Equal("/", root.GetProperty("servers")[0].GetProperty("url").GetString());
+    }
+
+    [Fact]
+    public async Task RuntimeDocumentMatchesCommittedFile()
+    {
+        await using ApiFactory factory = new();
+        using HttpClient client = factory.CreateClient();
+        using HttpResponseMessage response = await client.GetAsync("/openapi/v1.json", TestContext.Current.CancellationToken);
+        response.EnsureSuccessStatusCode();
+        string actual = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(ReadCommittedDocument().Replace("\r\n", "\n", StringComparison.Ordinal).Trim(),
+            actual.Replace("\r\n", "\n", StringComparison.Ordinal).Trim());
+    }
+
+    private static string ReadCommittedDocument() =>
+        File.ReadAllText(Path.Combine(RepositoryPaths.Root, "openapi", "v1.json"));
+}
