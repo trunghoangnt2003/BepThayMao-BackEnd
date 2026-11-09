@@ -10,7 +10,7 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 builder.AddApiLogging();
 builder.Services.AddApplication();
 builder.Services.AddApiOpenApi();
-builder.Services.AddApiHealthChecks();
+builder.Services.AddApiHealthChecks(builder.Configuration);
 builder.Services.AddApiErrorHandling();
 builder.Services.AddApiForwardedHeaders(builder.Configuration);
 builder.Services.AddApiRateLimiting(builder.Configuration);

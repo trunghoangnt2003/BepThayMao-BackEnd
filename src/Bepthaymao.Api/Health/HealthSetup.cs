@@ -1,12 +1,20 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using RabbitMQ.Client;
 
 namespace Bepthaymao.Api.Health;
 
 internal static class HealthSetup
 {
-    public static IServiceCollection AddApiHealthChecks(this IServiceCollection services)
+    public static IServiceCollection AddApiHealthChecks(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddHealthChecks();
+        var checks = services.AddHealthChecks();
+        var postgres = configuration.GetConnectionString("Default");
+        var redis = configuration.GetConnectionString("Redis");
+        var rabbit = configuration.GetConnectionString("RabbitMq");
+        if (!string.IsNullOrWhiteSpace(postgres)) checks.AddNpgSql(postgres, name: "postgres", tags: ["ready"]);
+        if (!string.IsNullOrWhiteSpace(redis)) checks.AddRedis(redis, name: "redis", tags: ["ready"]);
+        if (!string.IsNullOrWhiteSpace(rabbit))
+            checks.AddRabbitMQ(async _ => await new ConnectionFactory { Uri = new Uri(rabbit) }.CreateConnectionAsync(), name: "rabbitmq", tags: ["ready"]);
         return services;
     }
 
