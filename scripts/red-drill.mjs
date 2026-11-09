@@ -35,7 +35,7 @@ const cases = [
   },
   {
     name: 'controller-base',
-    changes: { 'src/Bepthaymao.Api/Drill/Probe.cs': 'namespace Bepthaymao.Api.Drill; public sealed class Probe : Microsoft.AspNetCore.Mvc.ControllerBase {}' },
+    changes: { 'src/Bepthaymao.Api/Drill/Probe.cs': 'namespace Bepthaymao.Api.Drill; [Microsoft.AspNetCore.Mvc.ApiController] public sealed class Probe : Microsoft.AspNetCore.Mvc.ControllerBase {}' },
     args: tests, expected: /NoTypeDerivesFromControllerBase/,
   },
   {
