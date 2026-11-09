@@ -1,12 +1,25 @@
 using Bepthaymao.Application;
 using Bepthaymao.Api.Health;
+using Bepthaymao.Api.Errors;
+using Bepthaymao.Api.Observability;
 using Bepthaymao.Api.OpenApi;
+using Bepthaymao.Api.Security;
+using Serilog;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+builder.AddApiLogging();
 builder.Services.AddApplication();
 builder.Services.AddApiOpenApi();
 builder.Services.AddApiHealthChecks();
+builder.Services.AddApiErrorHandling();
+builder.Services.AddApiForwardedHeaders(builder.Configuration);
+builder.Services.AddApiRateLimiting(builder.Configuration);
 WebApplication app = builder.Build();
+app.UseForwardedHeaders();
+app.UseMiddleware<CorrelationIdMiddleware>();
+app.UseSerilogRequestLogging();
+app.UseApiErrorHandling();
+app.UseRateLimiter();
 app.NewVersionedApi("Bepthaymao").MapGroup("/api/v{version:apiVersion}").HasApiVersion(1.0);
 app.MapOpenApi().WithDocumentPerVersion();
 app.MapApiHealthEndpoints();

@@ -1,0 +1,10 @@
+{
+  "command": "dotnet run --project tests/Bepthaymao.Integration.Tests -- -class \"*ErrorHandling*\" -noLogo -noColor -result-junit tests/Bepthaymao.Integration.Tests/TestResults/task3-red.xml",
+  "exitCode": 1,
+  "output": "<testsuites name=\"Test results\" tests=\"1\" failures=\"1\" errors=\"0\"><testsuite name=\"Bepthaymao.Integration.Tests\" tests=\"1\" failures=\"1\" errors=\"0\"><testcase name=\"Bepthaymao.Integration.Tests.Errors.ErrorHandlingTests.MissingRouteReturnsProblemDetailsWithCorrelationId\"><failure message=\"Assert.Equal() Failure: Strings differ\" /></testcase></testsuite></testsuites>",
+  "targetTest": "Bepthaymao.Integration.Tests.Errors.ErrorHandlingTests.MissingRouteReturnsProblemDetailsWithCorrelationId",
+  "targetFile": "backend/tests/Bepthaymao.Integration.Tests/Errors/ErrorHandlingTests.cs",
+  "expected": "A missing API route returns application/problem+json with the supplied correlation id.",
+  "actual": "The response content type was null.",
+  "semanticAssessment": "PASS: the named target executed and failed on the planned assertion because problem-details error handling and correlation middleware do not exist yet."
+}

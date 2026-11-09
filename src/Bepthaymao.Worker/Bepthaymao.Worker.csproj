@@ -3,6 +3,7 @@
     <OutputType>Exe</OutputType>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <ProjectReference Include="../Bepthaymao.Application/Bepthaymao.Application.csproj" />
     <ProjectReference Include="../Bepthaymao.Infrastructure/Bepthaymao.Infrastructure.csproj" />
