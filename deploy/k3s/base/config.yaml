@@ -8,6 +8,7 @@
     "ASPNETCORE_ENVIRONMENT": "Development",
     "SePay__Mode": "Fake",
     "Zalo__Mode": "Fake",
-    "ReverseProxy__KnownNetworks__0": "10.42.0.0/16"
+    "ReverseProxy__KnownNetworks__0": "10.42.0.0/16",
+    "AllowedHosts": "localhost;127.0.0.1;api"
   }
 }
