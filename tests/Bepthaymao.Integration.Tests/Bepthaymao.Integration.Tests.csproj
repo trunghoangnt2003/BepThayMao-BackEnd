@@ -1,6 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Testcontainers" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Testcontainers.Redis" />
     <ProjectReference Include="../../src/Bepthaymao.Api/Bepthaymao.Api.csproj" />
     <ProjectReference Include="../../src/Bepthaymao.Infrastructure/Bepthaymao.Infrastructure.csproj" />
   </ItemGroup>
