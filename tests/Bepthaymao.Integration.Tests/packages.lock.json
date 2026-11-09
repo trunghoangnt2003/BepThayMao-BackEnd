@@ -31,6 +31,37 @@
           "Microsoft.Extensions.Hosting": "10.0.14"
         }
       },
+      "Testcontainers": {
+        "type": "Direct",
+        "requested": "[4.15.0, )",
+        "resolved": "4.15.0",
+        "contentHash": "8tCZKMm++C/9dHIr8lsE1iDBIBmthbo2XlGFDr4gorT1vgZrJwU36fNkCGuX7h7V39rpQoTK/aG+FhJz3jhY3A==",
+        "dependencies": {
+          "Docker.DotNet.Enhanced": "4.3.3",
+          "Docker.DotNet.Enhanced.X509": "4.3.3",
+          "Microsoft.Extensions.Logging.Abstractions": "8.0.3",
+          "SSH.NET": "2026.0.0",
+          "SharpZipLib": "1.4.2"
+        }
+      },
+      "Testcontainers.PostgreSql": {
+        "type": "Direct",
+        "requested": "[4.15.0, )",
+        "resolved": "4.15.0",
+        "contentHash": "45ZvqAzrh9BoI15Z4id7WEfhk1pVKqVeAX76aef8fR5ScglD75fSQtYuXhKFx4kIcgRL5aLKt3pRiqCVIgsL9g==",
+        "dependencies": {
+          "Testcontainers": "4.15.0"
+        }
+      },
+      "Testcontainers.Redis": {
+        "type": "Direct",
+        "requested": "[4.15.0, )",
+        "resolved": "4.15.0",
+        "contentHash": "au2OSaAQwn3W6Q2QZsYUig2Smbi0xdAZQhyjynjK10Hhf0HokhsADtGjRdXefqjSIpq49Yqpkh7QjhD7hvMwAQ==",
+        "dependencies": {
+          "Testcontainers": "4.15.0"
+        }
+      },
       "xunit.v3": {
         "type": "Direct",
         "requested": "[4.0.2, )",
@@ -62,6 +93,72 @@
         "contentHash": "Tv1megkpUy+3FN9yfVJKIcYMLXTe5CPs4zftBxGaZhADJe6h9CJZ2Okh5cG4PoE7wzHTef+AK++8IuZta3Ppog==",
         "dependencies": {
           "Asp.Versioning.Mvc": "10.2.1"
+        }
+      },
+      "BouncyCastle.Cryptography": {
+        "type": "Transitive",
+        "resolved": "2.7.0",
+        "contentHash": "U+12df8UEWHgBi04YVf/Lgi2dy3SItlIYvHjjEVa/BngCQIzDCDRBk50DDByCfDvSbe5pRNFr3b7UrVK2kMcLw=="
+      },
+      "Docker.DotNet.Enhanced": {
+        "type": "Transitive",
+        "resolved": "4.3.3",
+        "contentHash": "nGicLwvd42FhRk+khY5uS6cx49ErNdwYKnYBg0F4m4BDKLp/R77AVmmN9xAiqI3W/wN5ZCHkdUhgxf5ORkZuFQ==",
+        "dependencies": {
+          "Docker.DotNet.Enhanced.Handler.Abstractions": "4.3.3",
+          "Docker.DotNet.Enhanced.LegacyHttp": "4.3.3",
+          "Docker.DotNet.Enhanced.NPipe": "4.3.3",
+          "Docker.DotNet.Enhanced.NativeHttp": "4.3.3",
+          "Docker.DotNet.Enhanced.Unix": "4.3.3",
+          "Microsoft.Extensions.Logging.Abstractions": "8.0.3"
+        }
+      },
+      "Docker.DotNet.Enhanced.Handler.Abstractions": {
+        "type": "Transitive",
+        "resolved": "4.3.3",
+        "contentHash": "9Cp8hOgtynixcDoAs9lnEaQosluojSYmiW3fsLsLIVfZjlq/fznSIZNUhnmyT4Xo1Iyuok/y49WL/25O47u0Pw==",
+        "dependencies": {
+          "Microsoft.Extensions.Logging.Abstractions": "8.0.3"
+        }
+      },
+      "Docker.DotNet.Enhanced.LegacyHttp": {
+        "type": "Transitive",
+        "resolved": "4.3.3",
+        "contentHash": "7j3M16emv9PAQN7VwFn23xLYNj8GJmwPOcogveHkaWnOCqiC+anRaNKQwqIBNApM1AuwZKivehTKTPmmrjUUnw==",
+        "dependencies": {
+          "Docker.DotNet.Enhanced.Handler.Abstractions": "4.3.3"
+        }
+      },
+      "Docker.DotNet.Enhanced.NativeHttp": {
+        "type": "Transitive",
+        "resolved": "4.3.3",
+        "contentHash": "iNzK+jRFeEMobSA7l/h4ARwCKOOefOWtVN5/RB0ft6/6H6IQXvVUuOgGyZAjYLBT7TsyClRYno2B904f3dtBuQ==",
+        "dependencies": {
+          "Docker.DotNet.Enhanced.Handler.Abstractions": "4.3.3"
+        }
+      },
+      "Docker.DotNet.Enhanced.NPipe": {
+        "type": "Transitive",
+        "resolved": "4.3.3",
+        "contentHash": "ZTLYufuEfY0e6qLOgeH9QgXx2KYuoABRVaY5A8rsggyLgYqbDj9rCRfVAhHPCUv83S7pVxDHy+Tvm/BnxjWVpg==",
+        "dependencies": {
+          "Docker.DotNet.Enhanced.Handler.Abstractions": "4.3.3"
+        }
+      },
+      "Docker.DotNet.Enhanced.Unix": {
+        "type": "Transitive",
+        "resolved": "4.3.3",
+        "contentHash": "ypo8qNbmvHw1t9VfpRTMogCw2vht6VjkXzlGYUUeP2H2bf83USURdla1maW1njn2oq2rfLUFOGMfmt+A37QU2w==",
+        "dependencies": {
+          "Docker.DotNet.Enhanced.Handler.Abstractions": "4.3.3"
+        }
+      },
+      "Docker.DotNet.Enhanced.X509": {
+        "type": "Transitive",
+        "resolved": "4.3.3",
+        "contentHash": "oBDibWezEv4hgj3RIQxI3DVcxkNV1MdrD0d/jhjUu+h3DL+qc0wlkQva15kkwMatXmC/hWp1VP0DMoFXe+BmEw==",
+        "dependencies": {
+          "Docker.DotNet.Enhanced.Handler.Abstractions": "4.3.3"
         }
       },
       "Microsoft.ApplicationInsights": {
@@ -390,6 +487,31 @@
           "Microsoft.Extensions.Logging.Abstractions": "8.0.0"
         }
       },
+      "OpenTelemetry": {
+        "type": "Transitive",
+        "resolved": "1.17.0",
+        "contentHash": "rMLOTftlMlTm7+MSrvXDHnJRjVkROFNKXHZrYjOsX+LankaFG7QSflx7qRRGjoqZoirohnxmJQ7GEb9occO4Gg==",
+        "dependencies": {
+          "Microsoft.Extensions.Configuration.EnvironmentVariables": "10.0.0",
+          "Microsoft.Extensions.Diagnostics.Abstractions": "10.0.0",
+          "Microsoft.Extensions.Logging.Configuration": "10.0.0",
+          "OpenTelemetry.Api.ProviderBuilderExtensions": "1.17.0"
+        }
+      },
+      "OpenTelemetry.Api": {
+        "type": "Transitive",
+        "resolved": "1.17.0",
+        "contentHash": "mSBxzomZgHIJu9CyVNqyDu/n2JHEtqVgfcCD1Br0cV5iLYogjZOMqhlVLt99PEp+0KGBNUR3GXgeOdN2GR3F9g=="
+      },
+      "OpenTelemetry.Api.ProviderBuilderExtensions": {
+        "type": "Transitive",
+        "resolved": "1.17.0",
+        "contentHash": "Xgc3Qf9B9TFMFpx6exTdGqMWuYIT2miNzkdMPutVvT9YuMFaEovXWke1Gb6z8NxYaQbbGF38vYLuSg1JCeui5Q==",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.0",
+          "OpenTelemetry.Api": "1.17.0"
+        }
+      },
       "Pipelines.Sockets.Unofficial": {
         "type": "Transitive",
         "resolved": "2.2.8",
@@ -461,6 +583,20 @@
         "contentHash": "fKL7mXv7qaiNBUC71ssvn/dU0k9t0o45+qm2XgKAlSt19xF+ijjxyA3R6HmCgfKEKwfcfkwWjayuQtRueZFkYw==",
         "dependencies": {
           "Serilog": "4.2.0"
+        }
+      },
+      "SharpZipLib": {
+        "type": "Transitive",
+        "resolved": "1.4.2",
+        "contentHash": "yjj+3zgz8zgXpiiC3ZdF/iyTBbz2fFvMxZFEBPUcwZjIvXOf37Ylm+K58hqMfIBt5JgU/Z2uoUS67JmTLe973A=="
+      },
+      "SSH.NET": {
+        "type": "Transitive",
+        "resolved": "2026.0.0",
+        "contentHash": "Yu9dirPq8l3oaat0+OQ7K0nUf5MmYltpia5UGqsApTG4zTPvBC1cxbNnC3NERij26dUST0A3Ef1QdHSn5ArbWQ==",
+        "dependencies": {
+          "BouncyCastle.Cryptography": "2.7.0",
+          "Microsoft.Extensions.Logging.Abstractions": "8.0.3"
         }
       },
       "StackExchange.Redis": {
@@ -565,7 +701,11 @@
           "AspNetCore.HealthChecks.Redis": "[9.0.0, )",
           "Bepthaymao.Application": "[1.0.0, )",
           "Bepthaymao.Infrastructure": "[1.0.0, )",
-          "Microsoft.AspNetCore.OpenApi": "[10.0.14, )"
+          "Microsoft.AspNetCore.OpenApi": "[10.0.14, )",
+          "OpenTelemetry.Exporter.OpenTelemetryProtocol": "[1.17.0, )",
+          "OpenTelemetry.Extensions.Hosting": "[1.17.0, )",
+          "OpenTelemetry.Instrumentation.AspNetCore": "[1.17.0, )",
+          "OpenTelemetry.Instrumentation.Http": "[1.17.0, )"
         }
       },
       "bepthaymao.application": {
@@ -701,6 +841,45 @@
         "contentHash": "SwcbEBtkECq3D2oywvHkm46fyrX9Dd2JPWphDnHUc2+cUWR1Mdo41atAjh/9iZjgQxuvbKfZKXqostT/LZfefA==",
         "dependencies": {
           "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.14"
+        }
+      },
+      "OpenTelemetry.Exporter.OpenTelemetryProtocol": {
+        "type": "CentralTransitive",
+        "requested": "[1.17.0, )",
+        "resolved": "1.17.0",
+        "contentHash": "R1omQOrQpGlS0Cp5UIr/TAiuEA48JrPlgr1NPV5gESiTU7HhWU+ILe2EBSYb1fKdsSavZ7nZkHcUxAzofPqr2A==",
+        "dependencies": {
+          "OpenTelemetry": "1.17.0"
+        }
+      },
+      "OpenTelemetry.Extensions.Hosting": {
+        "type": "CentralTransitive",
+        "requested": "[1.17.0, )",
+        "resolved": "1.17.0",
+        "contentHash": "t1OwL/4qgboGMobYVT+UV5zgWnFqCp4Pw8lcsmzh8m2K8PQsTKkyxrC32tqYTMYny3GOW4q5cltE3dTVzLmRew==",
+        "dependencies": {
+          "Microsoft.Extensions.Hosting.Abstractions": "10.0.0",
+          "OpenTelemetry": "1.17.0"
+        }
+      },
+      "OpenTelemetry.Instrumentation.AspNetCore": {
+        "type": "CentralTransitive",
+        "requested": "[1.17.0, )",
+        "resolved": "1.17.0",
+        "contentHash": "rGbmk1vuy1kvgZmE0ps7Vb99YZvDap6AalrrF60FwnNit1uW/PbeFZj1cpb0T8MPkYmjhBrRJ1/JB6QqXkRjHA==",
+        "dependencies": {
+          "OpenTelemetry.Api.ProviderBuilderExtensions": "[1.17.0, 2.0.0)"
+        }
+      },
+      "OpenTelemetry.Instrumentation.Http": {
+        "type": "CentralTransitive",
+        "requested": "[1.17.0, )",
+        "resolved": "1.17.0",
+        "contentHash": "uTwVtxIJ/xB96wGYTaDsbkJVeCFdUxTwvrlDUn2YJixy0UuKc8DvQMzwKNJMTzNFiiyYO9c40id6tUHTmWs33A==",
+        "dependencies": {
+          "Microsoft.Extensions.Configuration": "10.0.0",
+          "Microsoft.Extensions.Options": "10.0.0",
+          "OpenTelemetry.Api.ProviderBuilderExtensions": "[1.17.0, 2.0.0)"
         }
       },
       "Serilog.AspNetCore": {
