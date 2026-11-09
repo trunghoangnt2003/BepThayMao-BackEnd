@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <ProjectReference Include="../Bepthaymao.Domain/Bepthaymao.Domain.csproj" />
+    <InternalsVisibleTo Include="Bepthaymao.Application.Tests" />
   </ItemGroup>
 </Project>

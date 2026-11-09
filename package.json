@@ -10,7 +10,7 @@
     "format": "dotnet format Bepthaymao.slnx",
     "build": "dotnet build Bepthaymao.slnx -c Release -warnaserror",
     "test": "dotnet test --solution Bepthaymao.slnx",
-    "test:fast": "dotnet test --project tests/Bepthaymao.Architecture.Tests",
+    "test:fast": "dotnet test --project tests/Bepthaymao.Architecture.Tests && dotnet test --project tests/Bepthaymao.Application.Tests",
     "test:scripts": "node --test scripts/lib/*.test.mjs",
     "drill": "node scripts/red-drill.mjs",
     "secrets:scan": "node scripts/scan-secrets.mjs",

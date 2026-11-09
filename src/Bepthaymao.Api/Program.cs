@@ -1,7 +1,9 @@
+using Bepthaymao.Application;
 using Bepthaymao.Api.Health;
 using Bepthaymao.Api.OpenApi;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+builder.Services.AddApplication();
 builder.Services.AddApiOpenApi();
 builder.Services.AddApiHealthChecks();
 WebApplication app = builder.Build();
