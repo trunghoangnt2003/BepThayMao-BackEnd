@@ -1,0 +1,44 @@
+http:
+  routers:
+    api:
+      entryPoints: [web]
+      rule: PathPrefix(`/api`)
+      priority: 100
+      middlewares: [secure-headers, body-limit, rate-global]
+      service: api
+    admin:
+      entryPoints: [web]
+      rule: PathPrefix(`/admin`)
+      priority: 50
+      middlewares: [secure-headers, rate-global]
+      service: admin
+    customer:
+      entryPoints: [web]
+      rule: PathPrefix(`/`)
+      priority: 1
+      middlewares: [secure-headers, rate-global]
+      service: customer
+  middlewares:
+    body-limit:
+      buffering:
+        maxRequestBodyBytes: 1048576
+    rate-global:
+      rateLimit:
+        average: 50
+        period: 1s
+        burst: 100
+    secure-headers:
+      headers:
+        contentTypeNosniff: true
+        frameDeny: true
+        referrerPolicy: strict-origin-when-cross-origin
+  services:
+    api:
+      loadBalancer:
+        servers: [{url: http://host.docker.internal:5080}]
+    admin:
+      loadBalancer:
+        servers: [{url: http://host.docker.internal:4201}]
+    customer:
+      loadBalancer:
+        servers: [{url: http://host.docker.internal:4200}]

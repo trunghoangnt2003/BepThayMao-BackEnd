@@ -14,7 +14,11 @@
     "test:scripts": "node --test scripts/lib/*.test.mjs",
     "drill": "node scripts/red-drill.mjs",
     "secrets:scan": "node scripts/scan-secrets.mjs",
-    "openapi:check": "node scripts/openapi-check.mjs"
+    "openapi:check": "node scripts/openapi-check.mjs",
+    "dev:up": "node scripts/dev.mjs up",
+    "dev:down": "node scripts/dev.mjs down",
+    "dev:api": "node scripts/dev.mjs api",
+    "dev:smoke": "node scripts/dev-smoke.mjs"
   },
   "devDependencies": {
     "husky": "9.1.7",
