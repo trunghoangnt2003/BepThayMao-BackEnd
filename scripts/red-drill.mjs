@@ -55,6 +55,14 @@ try {
     console.log(`${drill.name} | dotnet ${drill.args.join(' ')} | ĐỎ ĐÚNG | ${evidence}`);
     for (const [file, bytes] of locks) writeFileSync(file, bytes);
   }
+  const policyPath = 'scripts/license-policy.json';
+  const policy = JSON.parse(readFileSync(policyPath, 'utf8'));
+  policy.allow = policy.allow.filter((license) => license !== 'MIT');
+  const licenseEvidence = withFiles(root, { [policyPath]: JSON.stringify(policy) }, () => assertRed(run(process.execPath, ['scripts/license-check.mjs']), /violations/));
+  console.log(`license-outside-allowlist | RED | ${licenseEvidence}`);
+  const middleware = 'deploy/k3s/base/body-limit.yaml';
+  const k3sEvidence = withFiles(root, { [middleware]: readFileSync(middleware, 'utf8').replace('maxRequestBodyBytes', 'maxRequestBodyByte') }, () => assertRed(run(process.execPath, ['scripts/k3s-validate.mjs']), /Invalid: [1-9]|Errors: [1-9]/));
+  console.log(`k3s-invalid-field | RED | ${k3sEvidence}`);
   const cli = resolve('node_modules/@commitlint/cli/cli.js');
   const evidence = assertRed(run(process.execPath, [cli], { input: 'Update stuff\n' }), /type-empty|subject-empty/);
   const valid = run(process.execPath, [cli], { input: 'feat(01-02): add solution skeleton\n' });

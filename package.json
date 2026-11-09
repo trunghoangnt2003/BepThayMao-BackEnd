@@ -3,14 +3,16 @@
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
-  "engines": { "node": ">=24.15 <25" },
+  "engines": {
+    "node": ">=24.15 <25"
+  },
   "scripts": {
     "prepare": "husky",
     "lint": "dotnet format Bepthaymao.slnx --verify-no-changes && dotnet build Bepthaymao.slnx -warnaserror",
     "format": "dotnet format Bepthaymao.slnx",
     "build": "dotnet build Bepthaymao.slnx -c Release -warnaserror",
     "test": "dotnet test --solution Bepthaymao.slnx",
-    "test:fast": "dotnet test --project tests/Bepthaymao.Architecture.Tests && dotnet test --project tests/Bepthaymao.Application.Tests",
+    "test:fast": "dotnet test --project tests/Bepthaymao.Architecture.Tests && dotnet test --project tests/Bepthaymao.Application.Tests && dotnet test --project tests/Bepthaymao.Domain.Tests",
     "test:scripts": "node --test scripts/lib/*.test.mjs",
     "drill": "node scripts/red-drill.mjs",
     "secrets:scan": "node scripts/scan-secrets.mjs",
@@ -18,12 +20,21 @@
     "dev:up": "node scripts/dev.mjs up",
     "dev:down": "node scripts/dev.mjs down",
     "dev:api": "node scripts/dev.mjs api",
-    "dev:smoke": "node scripts/dev-smoke.mjs"
+    "dev:smoke": "node scripts/dev-smoke.mjs",
+    "dev:db": "node scripts/dev.mjs db",
+    "licenses:check": "node scripts/license-check.mjs",
+    "docker:build": "docker build --target api -t bepthaymao-api:dev . && docker build --target worker -t bepthaymao-worker:dev .",
+    "deps:vulnerable": "node scripts/check-vulnerable.mjs",
+    "k3s:validate": "node scripts/k3s-validate.mjs",
+    "contract:lint": "node scripts/contract-check.mjs lint",
+    "contract:breaking": "node scripts/contract-check.mjs breaking",
+    "docker:smoke": "node scripts/docker-smoke.mjs"
   },
   "devDependencies": {
-    "husky": "9.1.7",
-    "lint-staged": "17.6.0",
     "@commitlint/cli": "21.2.4",
-    "@commitlint/config-conventional": "21.2.4"
+    "@commitlint/config-conventional": "21.2.4",
+    "@stoplight/spectral-cli": "6.17.1",
+    "husky": "9.1.7",
+    "lint-staged": "17.6.0"
   }
 }

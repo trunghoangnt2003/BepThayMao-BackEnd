@@ -15,6 +15,11 @@ if (command === 'up' || command === 'down') {
     const child = spawn('docker', args, { cwd: root, stdio: 'inherit' });
     child.on('exit', code => resolveCode(code ?? 1));
   });
+} else if (command === 'db') {
+  const dbArgs = process.argv.slice(3);
+  if (dbArgs[0] === 'seed' && !dbArgs.includes('--file')) dbArgs.push('--file', resolve(root, process.env.SEED_BRANCHES_FILE ?? 'seed/branches.sample.json'));
+  const child = spawn('dotnet', ['run', '--project', 'src/Bepthaymao.Api', '--', 'db', ...dbArgs], { cwd: root, env: buildApiEnv(env), stdio: 'inherit' });
+  child.on('exit', code => { process.exitCode = code ?? 1; });
 } else if (command === 'api') {
   const child = spawn('dotnet', ['run', '--project', 'src/Bepthaymao.Api', '--urls', `http://${env.API_BIND_ADDRESS}:${env.API_PORT}`], { cwd: root, env: buildApiEnv(env), stdio: 'inherit' });
   process.on('SIGINT', () => child.kill('SIGINT'));

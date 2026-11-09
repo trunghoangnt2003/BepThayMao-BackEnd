@@ -11,6 +11,10 @@ internal static class HealthSetup
         var postgres = configuration.GetConnectionString("Default");
         var redis = configuration.GetConnectionString("Redis");
         var rabbit = configuration.GetConnectionString("RabbitMq");
+        checks.AddCheck("configuration", () =>
+            string.IsNullOrWhiteSpace(postgres) || string.IsNullOrWhiteSpace(redis) || string.IsNullOrWhiteSpace(rabbit)
+                ? Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Unhealthy("Required infrastructure configuration is missing.")
+                : Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy(), tags: ["ready"]);
         if (!string.IsNullOrWhiteSpace(postgres)) checks.AddNpgSql(postgres, name: "postgres", tags: ["ready"]);
         if (!string.IsNullOrWhiteSpace(redis)) checks.AddRedis(redis, name: "redis", tags: ["ready"]);
         if (!string.IsNullOrWhiteSpace(rabbit))

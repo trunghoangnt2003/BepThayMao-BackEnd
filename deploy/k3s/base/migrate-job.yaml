@@ -1,0 +1,80 @@
+{
+  "apiVersion": "batch/v1",
+  "kind": "Job",
+  "metadata": {
+    "name": "migrate"
+  },
+  "spec": {
+    "backoffLimit": 1,
+    "template": {
+      "spec": {
+        "securityContext": {
+          "runAsNonRoot": true,
+          "runAsUser": 1654,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        },
+        "containers": [
+          {
+            "name": "api",
+            "image": "bepthaymao-api",
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "readOnlyRootFilesystem": true,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              }
+            },
+            "resources": {
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              },
+              "limits": {
+                "cpu": "500m",
+                "memory": "512Mi"
+              }
+            },
+            "volumeMounts": [
+              {
+                "name": "tmp",
+                "mountPath": "/tmp"
+              }
+            ],
+            "ports": [
+              {
+                "containerPort": 8080
+              }
+            ],
+            "envFrom": [
+              {
+                "configMapRef": {
+                  "name": "bepthaymao-config"
+                }
+              },
+              {
+                "secretRef": {
+                  "name": "bepthaymao-api-secrets"
+                }
+              }
+            ],
+            "args": [
+              "db",
+              "migrate"
+            ]
+          }
+        ],
+        "volumes": [
+          {
+            "name": "tmp",
+            "emptyDir": {}
+          }
+        ],
+        "restartPolicy": "Never"
+      }
+    }
+  }
+}

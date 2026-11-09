@@ -1,0 +1,7 @@
+{
+  "branches": [
+    { "id": "019a5dc0-0001-7000-8000-000000000001", "name": "Cơ sở Mẫu 1", "address": "Số 1 Đường Mẫu, Phường Mẫu, TP. Mẫu", "phone": "02800000001", "openTime": "06:00", "closeTime": "21:30", "isActive": true },
+    { "id": "019a5dc0-0002-7000-8000-000000000002", "name": "Cơ sở Mẫu 2", "address": "Số 2 Đường Mẫu, Phường Mẫu, TP. Mẫu", "phone": "02800000002", "openTime": "07:00", "closeTime": "21:00", "isActive": true },
+    { "id": "019a5dc0-0003-7000-8000-000000000003", "name": "Cơ sở Mẫu 3", "address": "Số 3 Đường Mẫu, Phường Mẫu, TP. Mẫu", "phone": "02800000003", "openTime": "06:00", "closeTime": "21:30", "isActive": false }
+  ]
+}

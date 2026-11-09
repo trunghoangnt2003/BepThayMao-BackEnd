@@ -13,6 +13,7 @@ public static class SerilogConfiguration
     {
         return configuration
             .ReadFrom.Configuration(appConfiguration)
+            .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
             .Enrich.FromLogContext()
             .Enrich.WithProperty("Application", applicationName)
             .WriteTo.Console(new CompactJsonFormatter());
