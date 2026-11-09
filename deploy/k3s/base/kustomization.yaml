@@ -1,19 +1,16 @@
-{
-  "apiVersion": "kustomize.config.k8s.io/v1beta1",
-  "kind": "Kustomization",
-  "resources": [
-    "api.yaml",
-    "api-service.yaml",
-    "worker.yaml",
-    "customer.yaml",
-    "customer-service.yaml",
-    "admin.yaml",
-    "admin-service.yaml",
-    "config.yaml",
-    "migrate-job.yaml",
-    "ingress.yaml",
-    "rate-global.yaml",
-    "body-limit.yaml",
-    "secure-headers.yaml"
-  ]
-}
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- api.yaml
+- api-service.yaml
+- worker.yaml
+- customer.yaml
+- customer-service.yaml
+- admin.yaml
+- admin-service.yaml
+- config.yaml
+- migrate-job.yaml
+- ingress.yaml
+- rate-global.yaml
+- body-limit.yaml
+- secure-headers.yaml
