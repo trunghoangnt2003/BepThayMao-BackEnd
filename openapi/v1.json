@@ -14,31 +14,87 @@
       "url": "/"
     }
   ],
-  "paths": { },
+  "paths": {
+    "/api/v1/branches": {
+      "get": {
+        "tags": [
+          "Branches"
+        ],
+        "summary": "Danh sách cơ sở đang hoạt động",
+        "description": "Chỉ trả thông tin công khai tối thiểu; không lộ tọa độ, cấu hình ngân hàng, SePay, Zalo hay cờ hoạt động.",
+        "operationId": "listPublicBranches",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PublicBranch"
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
   "components": {
     "schemas": {
       "ProblemDetails": {
         "required": [
+          "correlationId",
           "title",
-          "status",
-          "correlationId"
+          "status"
         ],
         "type": "object",
         "properties": {
           "type": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "title": {
             "type": "string"
           },
           "status": {
-            "type": "integer"
+            "type": "integer",
+            "format": "int32"
           },
           "detail": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "instance": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "correlationId": {
             "type": "string"
@@ -47,7 +103,46 @@
             "type": "string"
           }
         }
+      },
+      "PublicBranch": {
+        "required": [
+          "id",
+          "name",
+          "address",
+          "phone",
+          "openTime",
+          "closeTime"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "openTime": {
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "type": "string"
+          },
+          "closeTime": {
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "type": "string"
+          }
+        }
       }
     }
-  }
+  },
+  "tags": [
+    {
+      "name": "Branches"
+    }
+  ]
 }
