@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Bepthaymao.Api.Security;
 using Bepthaymao.Application.Abstractions.Messaging;
 using Bepthaymao.Application.Auth.Login;
+using Bepthaymao.Application.Auth.Refresh;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Bepthaymao.Api.Endpoints.Auth;
@@ -25,6 +26,15 @@ public static class AuthEndpoints
             .WithDescription("Đăng nhập bằng tên đăng nhập và mật khẩu, nhận JWT và cookie refresh HttpOnly.")
             .AllowAnonymous().RequireRateLimiting(RateLimitPolicies.Public)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(429);
+        v1.MapPost("/auth/refresh", async (HttpContext context,
+            [FromServices] ICommandHandler<RefreshSessionCommand, LoginResult> handler, CancellationToken cancellationToken) =>
+        {
+            LoginResult result = await handler.Handle(new(context.Request.Cookies[RefreshCookie.Name]), cancellationToken);
+            RefreshCookie.Append(context.Response, result.Refresh);
+            return TypedResults.Ok(result.Tokens);
+        }).WithName("refreshToken").WithTags("Auth").WithSummary("Làm mới phiên đăng nhập")
+            .WithDescription("Xoay vòng refresh cookie và phát JWT với quyền hiện tại.")
+            .AllowAnonymous().ProducesProblem(401).ProducesProblem(403);
         return v1;
     }
 }

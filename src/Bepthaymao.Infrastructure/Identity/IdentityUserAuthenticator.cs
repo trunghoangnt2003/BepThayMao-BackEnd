@@ -21,6 +21,18 @@ internal sealed class IdentityUserAuthenticator(UserManager<AppUser> users, IPas
             return null;
         }
         if (!await users.CheckPasswordAsync(user, password)) return null;
+        return await ReadUser(user);
+    }
+
+    public async Task<AuthenticatedUser?> FindByIdAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        AppUser? user = await users.FindByIdAsync(userId.ToString());
+        return user is null ? null : await ReadUser(user);
+    }
+
+    private async Task<AuthenticatedUser?> ReadUser(AppUser user)
+    {
         IList<string> roles = await users.GetRolesAsync(user);
         if (roles.Count != 1 || !Enum.TryParse(roles[0], out UserRole role)) return null;
         return new(user.Id, user.UserName!, role, user.OwnerId, user.BranchId);
