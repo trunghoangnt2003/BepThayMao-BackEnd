@@ -93,6 +93,27 @@ public sealed class RefreshRotationTests(InfrastructureFixture infrastructure) :
         }
     }
 
+    [Fact]
+    public async Task ReusedTokenRevokesAllUserSessions()
+    {
+        await using ApiFactory factory = await CreateFactory();
+        using HttpClient client = factory.CreateClient();
+        string first = await Login(client);
+        string otherSession = await Login(client);
+        using HttpResponseMessage rotated = await Refresh(client, first);
+        Assert.Equal(HttpStatusCode.OK, rotated.StatusCode);
+        string successor = Cookie(rotated);
+        using HttpResponseMessage replay = await Refresh(client, first);
+        Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
+        using HttpResponseMessage rejectedSuccessor = await Refresh(client, successor);
+        using HttpResponseMessage rejectedOtherSession = await Refresh(client, otherSession);
+        Assert.Equal(HttpStatusCode.Unauthorized, rejectedSuccessor.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, rejectedOtherSession.StatusCode);
+        using IServiceScope scope = factory.Services.CreateScope();
+        Assert.All(await scope.ServiceProvider.GetRequiredService<AppDbContext>().RefreshTokens.ToArrayAsync(TestContext.Current.CancellationToken),
+            token => Assert.NotNull(token.RevokedAt));
+    }
+
     private async Task<ApiFactory> CreateFactory(bool manager = false, TimeProvider? clock = null)
     {
         ApiFactory factory = new(new Dictionary<string, string?> { ["ConnectionStrings:Default"] = await infrastructure.CreateDatabaseAsync() }, clock);

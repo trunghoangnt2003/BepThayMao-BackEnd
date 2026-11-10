@@ -7,7 +7,7 @@ namespace Bepthaymao.Integration.Tests.Security;
 
 public sealed class AnonymousAllowlistTests
 {
-    private static readonly string[] _expected = ["login", "listPublicBranches", "/health/live", "/health/ready", "/openapi/{documentName}.json"];
+    private static readonly string[] _expected = ["login", "refreshToken", "logout", "listPublicBranches", "/health/live", "/health/ready", "/openapi/{documentName}.json"];
     [Fact]
     public async Task AnonymousEndpointsAreExactlyTheReviewedAllowlist()
     {
