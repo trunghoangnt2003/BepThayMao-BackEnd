@@ -4,6 +4,7 @@ using Bepthaymao.Api.Security;
 using Bepthaymao.Application.Abstractions.Messaging;
 using Bepthaymao.Application.Auth.Login;
 using Bepthaymao.Application.Auth.Refresh;
+using Bepthaymao.Application.Auth.Logout;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Bepthaymao.Api.Endpoints.Auth;
@@ -34,7 +35,16 @@ public static class AuthEndpoints
             return TypedResults.Ok(result.Tokens);
         }).WithName("refreshToken").WithTags("Auth").WithSummary("Làm mới phiên đăng nhập")
             .WithDescription("Xoay vòng refresh cookie và phát JWT với quyền hiện tại.")
-            .AllowAnonymous().ProducesProblem(401).ProducesProblem(403);
+            .AddEndpointFilter<SameOriginFilter>().AllowAnonymous().ProducesProblem(401).ProducesProblem(403);
+        v1.MapPost("/auth/logout", async (HttpContext context,
+            [FromServices] ICommandHandler<LogoutCommand, bool> handler, CancellationToken cancellationToken) =>
+        {
+            await handler.Handle(new(context.Request.Cookies[RefreshCookie.Name]), cancellationToken);
+            RefreshCookie.Delete(context.Response);
+            return TypedResults.NoContent();
+        }).WithName("logout").WithTags("Auth").WithSummary("Đăng xuất mọi phiên")
+            .WithDescription("Thu hồi mọi refresh token của tài khoản và xóa cookie; không có cookie vẫn trả 204.")
+            .AddEndpointFilter<SameOriginFilter>().AllowAnonymous().ProducesProblem(403);
         return v1;
     }
 }

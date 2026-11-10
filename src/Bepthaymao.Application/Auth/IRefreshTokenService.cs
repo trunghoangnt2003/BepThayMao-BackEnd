@@ -13,4 +13,6 @@ public interface IRefreshTokenService
 {
     Task<IssuedRefreshToken> IssueAsync(Guid userId, Guid? familyId, CancellationToken cancellationToken);
     Task<RefreshRotation> RotateAsync(string rawToken, CancellationToken cancellationToken);
+    Task RevokeAllForUserAsync(Guid userId, CancellationToken cancellationToken);
+    Task RevokeForTokenAsync(string rawToken, CancellationToken cancellationToken);
 }
