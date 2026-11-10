@@ -15,7 +15,15 @@ internal sealed class ApiExceptionHandler(
         CancellationToken cancellationToken)
     {
         ProblemDetails problemDetails;
-        if (exception is ValidationException validationException)
+        if (exception is AuthenticationFailedException)
+        {
+            problemDetails = new ProblemDetails
+            {
+                Status = StatusCodes.Status401Unauthorized,
+                Title = "Authentication failed.",
+            };
+        }
+        else if (exception is ValidationException validationException)
         {
             problemDetails = new HttpValidationProblemDetails(validationException.Errors)
             {

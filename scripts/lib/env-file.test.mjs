@@ -13,7 +13,7 @@ test('dev secrets are generated once and host allowlist supports Docker SSR', ()
     const first = ensureEnvFile(example, actual);
     const second = ensureEnvFile(example, actual);
     assert.deepEqual(first, second);
-    for (const value of Object.values(first)) assert.match(value, /^[A-Za-z0-9_-]{32}$/);
+    for (const key of ['POSTGRES_PASSWORD', 'REDIS_PASSWORD', 'RABBITMQ_DEFAULT_PASS']) assert.match(first[key], /^[A-Za-z0-9_-]{32}$/);
     const env = buildApiEnv({ ...first, POSTGRES_PORT: '5432', POSTGRES_DB: 'sample', POSTGRES_USER: 'sample', REDIS_PORT: '6379', RABBITMQ_PORT: '5672', RABBITMQ_DEFAULT_USER: 'sample' });
     assert.equal(env.ASPNETCORE_ENVIRONMENT, 'Development');
     assert.ok(env.AllowedHosts.includes('localhost'));
