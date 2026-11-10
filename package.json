@@ -16,12 +16,20 @@
     "test:scripts": "node --test scripts/lib/*.test.mjs",
     "drill": "node scripts/red-drill.mjs",
     "secrets:scan": "node scripts/scan-secrets.mjs",
-    "openapi:check": "node scripts/openapi-check.mjs"
+    "openapi:check": "node scripts/openapi-check.mjs",
+    "dev:up": "node scripts/dev.mjs up",
+    "dev:down": "node scripts/dev.mjs down",
+    "dev:api": "node scripts/dev.mjs api",
+    "dev:db": "node scripts/dev.mjs db",
+    "dev:smoke": "node scripts/dev-smoke.mjs",
+    "contract:lint": "spectral lint openapi/v1.json --ruleset .spectral.yaml --fail-severity=warn",
+    "contract:breaking": "node scripts/contract-breaking.mjs"
   },
   "devDependencies": {
-    "husky": "9.1.7",
-    "lint-staged": "17.6.0",
     "@commitlint/cli": "21.2.4",
-    "@commitlint/config-conventional": "21.2.4"
+    "@commitlint/config-conventional": "21.2.4",
+    "@stoplight/spectral-cli": "6.17.1",
+    "husky": "9.1.7",
+    "lint-staged": "17.6.0"
   }
 }
