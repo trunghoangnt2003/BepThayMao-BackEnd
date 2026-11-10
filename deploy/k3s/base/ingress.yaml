@@ -1,0 +1,61 @@
+# Same routing and limits as deploy/traefik/dynamic.yml (D-09, D-11, ADR-0006). No login router (Phase 1.1).
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: rate-global
+spec:
+  rateLimit:
+    average: 50
+    period: 1s
+    burst: 100
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: body-limit
+spec:
+  buffering:
+    maxRequestBodyBytes: 1048576
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: secure-headers
+spec:
+  headers:
+    contentTypeNosniff: true
+    frameDeny: true
+    referrerPolicy: strict-origin-when-cross-origin
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: bepthaymao
+spec:
+  entryPoints: [web]
+  routes:
+    - kind: Rule
+      match: PathPrefix(`/api`)
+      priority: 100
+      middlewares:
+        - { name: secure-headers }
+        - { name: body-limit }
+        - { name: rate-global }
+      services:
+        - { name: api, port: 8080 }
+    - kind: Rule
+      match: PathPrefix(`/admin`)
+      priority: 50
+      middlewares:
+        - { name: secure-headers }
+        - { name: rate-global }
+      services:
+        - { name: admin, port: 8080 }
+    - kind: Rule
+      match: PathPrefix(`/`)
+      priority: 1
+      middlewares:
+        - { name: secure-headers }
+        - { name: rate-global }
+      services:
+        - { name: customer, port: 4000 }

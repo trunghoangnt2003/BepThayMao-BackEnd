@@ -1,0 +1,15 @@
+{
+  "allow": ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "0BSD", "MIT-0", "PostgreSQL", "OFL-1.1", "Python-2.0", "MPL-2.0"],
+  "exceptions": [
+    {
+      "package": "Mono.Cecil@0.11.3",
+      "license": "MIT",
+      "reason": "nuspec chỉ có licenseUrl opensource.org/licenses/mit-license.php (MIT); dùng trong test kiến trúc qua NetArchTest."
+    },
+    {
+      "package": "NetArchTest.Rules@1.3.2",
+      "license": "MIT",
+      "reason": "nuspec thiếu biểu thức giấy phép; repo nguồn BenMorris/NetArchTest phát hành theo MIT; chỉ dùng trong test kiến trúc."
+    }
+  ]
+}

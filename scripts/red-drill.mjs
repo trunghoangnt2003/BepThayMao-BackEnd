@@ -1,7 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { assertRed, withFiles } from './lib/drill.mjs';
 
 const root = process.cwd();
@@ -60,6 +61,22 @@ try {
   const valid = run(process.execPath, [cli], { input: 'feat(01-02): add solution skeleton\n' });
   if (valid.status !== 0) throw new Error('Conventional Commit rejected.');
   console.log(`commit-message | commitlint | ĐỎ ĐÚNG | ${evidence}`);
+  const ingress = 'deploy/k3s/base/ingress.yaml';
+  const k3sProof = withFiles(root, { [ingress]: readFileSync(ingress, 'utf8').replace('maxRequestBodyBytes', 'maxRequestBodyByte') },
+    () => assertRed(run(process.execPath, ['scripts/k3s-validate.mjs']), /maxRequestBodyByte|Invalid: [1-9]/));
+  console.log(`k3s-invalid-field | k3s:validate | ĐỎ ĐÚNG | ${k3sProof}`);
+  const policyDirectory = mkdtempSync(join(tmpdir(), 'bep-license-drill-'));
+  try {
+    const strictPolicy = JSON.parse(readFileSync('scripts/license-policy.json', 'utf8'));
+    strictPolicy.allow = strictPolicy.allow.filter((license) => license !== 'MIT');
+    const policyFile = join(policyDirectory, 'policy.json');
+    writeFileSync(policyFile, JSON.stringify(strictPolicy));
+    const licenseProof = assertRed(run(process.execPath, ['scripts/license-check.mjs'],
+      { env: { ...process.env, LICENSE_POLICY_FILE: policyFile } }), /VI PHẠM .+ MIT/);
+    console.log(`license-outside-allowlist | licenses:check | ĐỎ ĐÚNG | ${licenseProof}`);
+  } finally {
+    rmSync(policyDirectory, { recursive: true, force: true });
+  }
   const secretPath = 'drill-secret.txt';
   withFiles(root, { [secretPath]: 'ghp_' + randomBytes(18).toString('hex') + '\n' }, () => {
     try {

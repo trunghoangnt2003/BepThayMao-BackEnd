@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: customer
+  labels: { app: customer }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: customer }
+  template:
+    metadata:
+      labels: { app: customer }
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: customer
+          image: bepthaymao-customer
+          ports:
+            - { name: http, containerPort: 4000 }
+          env:
+            - { name: PORT, value: "4000" }
+            - { name: API_INTERNAL_URL, value: "http://api:8080" }
+            # Overlay sets the real hostname; never "*".
+            - { name: NG_ALLOWED_HOSTS, value: "localhost" }
+            - { name: SITE_URL, value: "http://localhost" }
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+            seccompProfile: { type: RuntimeDefault }
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: "1", memory: 512Mi }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: customer
+spec:
+  selector: { app: customer }
+  ports:
+    - { name: http, port: 4000, targetPort: http }

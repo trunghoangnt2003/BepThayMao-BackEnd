@@ -1,0 +1,11 @@
+# k3s base (Pattern 11). PostgreSQL/Redis/RabbitMQ on k3s are Phase 6 (OQ-5); Phase 1 dev uses compose.
+# Secrets are referenced by name only (bepthaymao-api-secrets); create them out of band, never commit values.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - config.yaml
+  - api.yaml
+  - migrate-job.yaml
+  - customer.yaml
+  - admin.yaml
+  - ingress.yaml
