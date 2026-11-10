@@ -30,19 +30,24 @@ export function ensureEnvFile(examplePath, envPath) {
   return { created, values: parseEnv(filled) };
 }
 
-/** Environment for the API/CLI process on the host, pointing at the compose services on 127.0.0.1. */
-export function buildApiEnv(env) {
+/**
+ * Environment for the API/CLI. Default: process on the host, compose services on 127.0.0.1 and published ports.
+ * With inCompose: container on the compose network, services by name on their internal ports.
+ */
+export function buildApiEnv(env, { inCompose = false } = {}) {
+  const at = (service, port, internal) => (inCompose ? `${service}:${internal}` : `127.0.0.1:${port || internal}`);
   const required = (key) => {
     if (!env[key]) throw new Error(`Thiếu ${key} trong deploy/.env; chạy npm run dev:up.`);
     return env[key];
   };
   const result = {
     ASPNETCORE_ENVIRONMENT: 'Development',
-    ConnectionStrings__Default: `Host=127.0.0.1;Port=${env.POSTGRES_PORT || 5432};Database=${env.POSTGRES_DB || 'bepthaymao'};`
+    ConnectionStrings__Default: `Host=${inCompose ? 'postgres' : '127.0.0.1'};Port=${inCompose ? 5432 : env.POSTGRES_PORT || 5432};`
+      + `Database=${env.POSTGRES_DB || 'bepthaymao'};`
       + `Username=${env.POSTGRES_USER || 'bepthaymao'};Password=${required('POSTGRES_PASSWORD')}`,
-    ConnectionStrings__Redis: `127.0.0.1:${env.REDIS_PORT || 6379},password=${required('REDIS_PASSWORD')}`,
+    ConnectionStrings__Redis: `${at('redis', env.REDIS_PORT, 6379)},password=${required('REDIS_PASSWORD')}`,
     ConnectionStrings__RabbitMq: `amqp://${encodeURIComponent(env.RABBITMQ_DEFAULT_USER || 'bepthaymao')}:`
-      + `${encodeURIComponent(required('RABBITMQ_DEFAULT_PASS'))}@127.0.0.1:${env.RABBITMQ_PORT || 5672}/`,
+      + `${encodeURIComponent(required('RABBITMQ_DEFAULT_PASS'))}@${at('rabbitmq', env.RABBITMQ_PORT, 5672)}/`,
     SePay__Mode: env.SePay__Mode || 'Fake',
     Zalo__Mode: env.Zalo__Mode || 'Fake',
   };

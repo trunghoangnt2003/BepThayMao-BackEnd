@@ -50,6 +50,14 @@ test('buildApiEnv builds loopback connection strings and escapes AMQP credential
   assert.equal('OTEL_EXPORTER_OTLP_ENDPOINT' in env, false);
 });
 
+test('buildApiEnv inCompose uses service names and internal ports', () => {
+  const env = buildApiEnv({ POSTGRES_PASSWORD: 'p', POSTGRES_PORT: '25432', REDIS_PASSWORD: 'r', REDIS_PORT: '6380',
+    RABBITMQ_DEFAULT_PASS: 'a' }, { inCompose: true });
+  assert.equal(env.ConnectionStrings__Default, 'Host=postgres;Port=5432;Database=bepthaymao;Username=bepthaymao;Password=p');
+  assert.equal(env.ConnectionStrings__Redis, 'redis:6379,password=r');
+  assert.equal(env.ConnectionStrings__RabbitMq, 'amqp://bepthaymao:a@rabbitmq:5672/');
+});
+
 test('buildApiEnv fails with the missing key name', () => {
   assert.throws(() => buildApiEnv({}), /POSTGRES_PASSWORD/);
 });

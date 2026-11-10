@@ -1,0 +1,11 @@
+bin/
+obj/
+**/bin/
+**/obj/
+node_modules/
+deploy/.env
+.git/
+TestResults/
+coverage/
+tests/
+artifacts/

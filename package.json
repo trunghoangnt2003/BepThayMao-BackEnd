@@ -23,7 +23,9 @@
     "dev:db": "node scripts/dev.mjs db",
     "dev:smoke": "node scripts/dev-smoke.mjs",
     "contract:lint": "spectral lint openapi/v1.json --ruleset .spectral.yaml --fail-severity=warn",
-    "contract:breaking": "node scripts/contract-breaking.mjs"
+    "contract:breaking": "node scripts/contract-breaking.mjs",
+    "docker:build": "docker build --target api -t bepthaymao-api:dev . && docker build --target worker -t bepthaymao-worker:dev .",
+    "docker:smoke": "node scripts/docker-smoke.mjs"
   },
   "devDependencies": {
     "@commitlint/cli": "21.2.4",
