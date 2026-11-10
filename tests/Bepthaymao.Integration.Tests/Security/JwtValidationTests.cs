@@ -64,9 +64,7 @@ public sealed class JwtValidationTests
             ["Jwt:Audience"] = "test-audience",
             ["Jwt:SigningKey"] = key,
         });
-        Type? setup = typeof(JwtAccessTokenIssuer).Assembly.GetType("Bepthaymao.Api.Security.AuthenticationSetup");
-        Assert.NotNull(setup);
-        setup.GetMethod("AddApiAuthentication")!.Invoke(null, [builder.Services, builder.Configuration]);
+        builder.Services.AddApiAuthentication(builder.Configuration);
         builder.Services.AddSingleton(TimeProvider.System);
         WebApplication app = builder.Build();
         app.UseAuthentication();

@@ -25,11 +25,11 @@ internal static class HealthSetup
     public static IEndpointRouteBuilder MapApiHealthEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false })
-            .ExcludeFromDescription();
+            .ExcludeFromDescription().AllowAnonymous();
         endpoints.MapHealthChecks("/health/ready", new HealthCheckOptions
         {
             Predicate = registration => registration.Tags.Contains("ready"),
-        }).ExcludeFromDescription();
+        }).ExcludeFromDescription().AllowAnonymous();
         return endpoints;
     }
 }
