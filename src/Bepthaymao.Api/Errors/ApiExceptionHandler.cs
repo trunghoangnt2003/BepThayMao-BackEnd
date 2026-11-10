@@ -2,6 +2,7 @@ using Bepthaymao.Application.Abstractions.Errors;
 using Bepthaymao.Domain.Common;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using System.Globalization;
 
 namespace Bepthaymao.Api.Errors;
 
@@ -15,7 +16,16 @@ internal sealed class ApiExceptionHandler(
         CancellationToken cancellationToken)
     {
         ProblemDetails problemDetails;
-        if (exception is AuthenticationFailedException)
+        if (exception is TooManyRequestsException throttled)
+        {
+            httpContext.Response.Headers.RetryAfter = throttled.RetryAfterSeconds.ToString(CultureInfo.InvariantCulture);
+            problemDetails = new ProblemDetails
+            {
+                Status = StatusCodes.Status429TooManyRequests,
+                Title = "Too many requests.",
+            };
+        }
+        else if (exception is AuthenticationFailedException)
         {
             problemDetails = new ProblemDetails
             {

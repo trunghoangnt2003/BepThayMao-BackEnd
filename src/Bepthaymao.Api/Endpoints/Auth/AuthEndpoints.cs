@@ -18,14 +18,16 @@ public static class AuthEndpoints
     public static RouteGroupBuilder MapAuthEndpoints(this RouteGroupBuilder v1)
     {
         v1.MapPost("/auth/login", async (LoginRequest request, HttpContext context,
-            [FromServices] ICommandHandler<LoginCommand, LoginResult> handler, CancellationToken cancellationToken) =>
+            [FromServices] ICommandHandler<LoginCommand, LoginResult> handler,
+            [FromServices] LoginAttemptLimiter attempts, CancellationToken cancellationToken) =>
         {
+            attempts.EnsureAllowed(context.Connection.RemoteIpAddress?.ToString(), request.Identifier);
             LoginResult result = await handler.Handle(new(request.Identifier, request.Password), cancellationToken);
             RefreshCookie.Append(context.Response, result.Refresh);
             return TypedResults.Ok(result.Tokens);
         }).WithName("login").WithTags("Auth").WithSummary("Đăng nhập nhân sự")
             .WithDescription("Đăng nhập bằng tên đăng nhập và mật khẩu, nhận JWT và cookie refresh HttpOnly.")
-            .AllowAnonymous().RequireRateLimiting(RateLimitPolicies.Public)
+            .AllowAnonymous().RequireRateLimiting(RateLimitPolicies.Login)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(429);
         v1.MapPost("/auth/refresh", async (HttpContext context,
             [FromServices] ICommandHandler<RefreshSessionCommand, LoginResult> handler, CancellationToken cancellationToken) =>

@@ -6,6 +6,7 @@ namespace Bepthaymao.Api.Security;
 public static class RateLimitPolicies
 {
     public const string Public = "public";
+    public const string Login = "login";
 }
 
 internal static class RateLimitingSetup
@@ -14,12 +15,17 @@ internal static class RateLimitingSetup
     {
         int permitLimit = configuration.GetValue("RateLimiting:Public:PermitLimit", 120);
         int windowSeconds = configuration.GetValue("RateLimiting:Public:WindowSeconds", 60);
+        int loginPermitLimit = configuration.GetValue("RateLimiting:Login:PermitLimit", 10);
+        int loginWindowSeconds = configuration.GetValue("RateLimiting:Login:WindowSeconds", 60);
+        services.AddSingleton<LoginAttemptLimiter>();
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.OnRejected = async (context, cancellationToken) =>
             {
-                context.HttpContext.Response.Headers.RetryAfter = windowSeconds.ToString(CultureInfo.InvariantCulture);
+                int retryAfter = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out TimeSpan retry)
+                    ? Math.Max(1, (int)Math.Ceiling(retry.TotalSeconds)) : windowSeconds;
+                context.HttpContext.Response.Headers.RetryAfter = retryAfter.ToString(CultureInfo.InvariantCulture);
                 IProblemDetailsService problemDetails = context.HttpContext.RequestServices
                     .GetRequiredService<IProblemDetailsService>();
                 await problemDetails.WriteAsync(new ProblemDetailsContext
@@ -38,6 +44,15 @@ internal static class RateLimitingSetup
                 {
                     PermitLimit = permitLimit,
                     Window = TimeSpan.FromSeconds(windowSeconds),
+                    QueueLimit = 0,
+                    AutoReplenishment = true,
+                }));
+            options.AddPolicy(RateLimitPolicies.Login, httpContext => RateLimitPartition.GetFixedWindowLimiter(
+                httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = loginPermitLimit,
+                    Window = TimeSpan.FromSeconds(loginWindowSeconds),
                     QueueLimit = 0,
                     AutoReplenishment = true,
                 }));
