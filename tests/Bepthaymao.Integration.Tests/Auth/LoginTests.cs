@@ -100,4 +100,62 @@ public sealed class LoginTests(InfrastructureFixture infrastructure) : IClassFix
         ["ConnectionStrings:Default"] = connectionString,
         ["RateLimiting:Public:PermitLimit"] = "1000",
     });
+
+    [Fact]
+    public async Task WrongPasswordAndUnknownUserReturnIdenticalProblem()
+    {
+        await using ApiFactory factory = CreateFactory(await infrastructure.CreateDatabaseAsync());
+        using IServiceScope scope = factory.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync(TestContext.Current.CancellationToken);
+        await AuthTestData.CreateUserAsync(scope.ServiceProvider, "known-user", "test-password-only", UserRole.Owner, Guid.CreateVersion7());
+        using HttpClient client = factory.CreateClient();
+        using HttpResponseMessage wrong = await client.PostAsJsonAsync("/api/v1/auth/login",
+            new { identifier = "known-user", password = "wrong-password-only" }, TestContext.Current.CancellationToken);
+        using HttpResponseMessage unknown = await client.PostAsJsonAsync("/api/v1/auth/login",
+            new { identifier = "unknown-user", password = "wrong-password-only" }, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, wrong.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, unknown.StatusCode);
+        Assert.Equal("application/problem+json", wrong.Content.Headers.ContentType?.MediaType);
+        using JsonDocument first = JsonDocument.Parse(await wrong.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        using JsonDocument second = JsonDocument.Parse(await unknown.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(first.RootElement.GetProperty("title").GetString(), second.RootElement.GetProperty("title").GetString());
+        Assert.Equal(first.RootElement.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal),
+            second.RootElement.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
+        Assert.True(first.RootElement.TryGetProperty("correlationId", out _));
+        Assert.True(second.RootElement.TryGetProperty("correlationId", out _));
+        Assert.False(first.RootElement.TryGetProperty("detail", out _));
+    }
+
+    [Theory]
+    [InlineData("{\"identifier\":\"owner\"}")]
+    [InlineData("{\"identifier\":\"owner\",\"password\":\"123456789\"}")]
+    [InlineData("{\"identifier\":\"owner\",\"password\":\"test-password-only\",\"role\":\"Owner\"}")]
+    public async Task InvalidBodiesReturn400(string json)
+    {
+        await using ApiFactory factory = CreateFactory(await infrastructure.CreateDatabaseAsync());
+        using HttpClient client = factory.CreateClient();
+        using StringContent content = new(json, Encoding.UTF8, "application/json");
+        using HttpResponseMessage response = await client.PostAsync("/api/v1/auth/login", content, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task NoLockoutAfterRepeatedFailures()
+    {
+        await using ApiFactory factory = CreateFactory(await infrastructure.CreateDatabaseAsync());
+        using IServiceScope scope = factory.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync(TestContext.Current.CancellationToken);
+        await AuthTestData.CreateUserAsync(scope.ServiceProvider, "no-lockout", "test-password-only", UserRole.Owner, Guid.CreateVersion7());
+        using HttpClient client = factory.CreateClient();
+        for (int attempt = 0; attempt < 10; attempt++)
+        {
+            using HttpResponseMessage wrong = await client.PostAsJsonAsync("/api/v1/auth/login",
+                new { identifier = "no-lockout", password = "wrong-password-only" }, TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.Unauthorized, wrong.StatusCode);
+        }
+        using HttpResponseMessage valid = await client.PostAsJsonAsync("/api/v1/auth/login",
+            new { identifier = "no-lockout", password = "test-password-only" }, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, valid.StatusCode);
+    }
 }
