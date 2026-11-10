@@ -5,6 +5,8 @@
     <OpenApiGenerateDocumentsOptions>--file-name v1 --document-name v1</OpenApiGenerateDocumentsOptions>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Asp.Versioning.Http" />
     <PackageReference Include="Asp.Versioning.OpenApi" />

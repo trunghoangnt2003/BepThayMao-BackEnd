@@ -25,6 +25,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
+        builder.UseSetting("Jwt:SigningKey", "test-signing-key-for-integration-tests-only-48-bytes");
         if (_infrastructure is not null)
         {
             builder.UseSetting("ConnectionStrings:Default", _infrastructure.PostgresConnectionString);
