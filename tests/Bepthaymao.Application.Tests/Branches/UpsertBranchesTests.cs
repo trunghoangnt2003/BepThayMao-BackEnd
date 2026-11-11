@@ -1,6 +1,7 @@
 using Bepthaymao.Application.Branches;
 using Bepthaymao.Application.Branches.UpsertBranches;
 using Bepthaymao.Domain.Branches;
+using Bepthaymao.Domain.Common;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 
@@ -37,5 +38,28 @@ public sealed class UpsertBranchesTests
         Assert.Contains(result.Errors, error => error.PropertyName == "Branches[0].OpenTime");
         Assert.Contains(result.Errors, error => error.PropertyName == "Branches[1].Id");
         Assert.True((await validator.ValidateAsync(new UpsertBranchesCommand(ownerId, [item with { OpenTime = "06:00" }]), TestContext.Current.CancellationToken)).IsValid);
+    }
+
+    [Fact]
+    public async Task ValidatorReportsCoordinatePath()
+    {
+        Guid ownerId = Guid.CreateVersion7();
+        BranchUpsertItem item = new(Guid.CreateVersion7(), "Mẫu", "Địa chỉ", "0901234567", "06:00", "21:30", true, Lat: 91);
+        var validation = await new UpsertBranchesCommandValidator().ValidateAsync(new UpsertBranchesCommand(ownerId, [item]), TestContext.Current.CancellationToken);
+        Assert.Contains(validation.Errors, error => error.PropertyName == "branches[0].lat");
+    }
+
+    [Fact]
+    public async Task HandlerRejectsAnotherOwner()
+    {
+        Guid ownerId = Guid.CreateVersion7();
+        BranchUpsertItem item = new(Guid.CreateVersion7(), "Mẫu", "Địa chỉ", "0901234567", "06:00", "21:30", true);
+        IBranchRepository repository = Substitute.For<IBranchRepository>();
+        Branch existing = Branch.Create(item.Id, Guid.CreateVersion7(), new("Original", "Address", "0901234567", 10, 106, new(6, 0), new(21, 30), 10, [], null, null, null, true), DateTimeOffset.UtcNow);
+        repository.FindAsync(item.Id, Arg.Any<CancellationToken>()).Returns(existing);
+        UpsertBranchesCommandHandler handler = new(repository, TimeProvider.System);
+        DomainRuleException error = await Assert.ThrowsAsync<DomainRuleException>(() => handler.Handle(new(ownerId, [item with { Lat = 10 }]), TestContext.Current.CancellationToken));
+        Assert.Equal("ownerId", error.Rule);
+        Assert.Equal("Original", existing.Name);
     }
 }
