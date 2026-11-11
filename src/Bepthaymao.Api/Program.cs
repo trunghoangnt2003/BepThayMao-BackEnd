@@ -15,6 +15,7 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 builder.AddApiLogging();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddScoped<Bepthaymao.Api.Cli.SeedRunner>();
 builder.Services.AddIntegrationModes(builder.Configuration);
 builder.Services.AddApiOpenApi();
 builder.Services.AddApiHealthChecks(builder.Configuration);

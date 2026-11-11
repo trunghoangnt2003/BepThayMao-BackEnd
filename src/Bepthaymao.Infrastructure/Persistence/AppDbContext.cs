@@ -55,12 +55,24 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
         });
         builder.Entity<Branch>(branch =>
         {
-            branch.ToTable("branches", table => table.HasCheckConstraint("ck_branches_open_before_close", "open_time < close_time"));
+            branch.ToTable("branches", table =>
+            {
+                table.HasCheckConstraint("ck_branches_open_before_close", "open_time < close_time");
+                table.HasCheckConstraint("ck_branches_lat", "lat BETWEEN -90 AND 90");
+                table.HasCheckConstraint("ck_branches_lng", "lng BETWEEN -180 AND 180");
+                table.HasCheckConstraint("ck_branches_abandoned_threshold", "abandoned_threshold_minutes >= 1");
+            });
             branch.HasKey(value => value.Id);
             branch.Property(value => value.Id).ValueGeneratedNever();
             branch.Property(value => value.Name).HasMaxLength(200);
             branch.Property(value => value.Address).HasMaxLength(500);
             branch.Property(value => value.Phone).HasMaxLength(20);
+            branch.HasOne<Owner>().WithMany().HasForeignKey(value => value.OwnerId).OnDelete(DeleteBehavior.Restrict);
+            branch.Property(value => value.AbandonedThresholdMinutes).HasDefaultValue(10);
+            branch.Property(value => value.ZaloRecipientIds).HasColumnType("text[]").HasDefaultValueSql("'{}'::text[]");
+            branch.Property(value => value.BankAccountNo).HasMaxLength(50);
+            branch.Property(value => value.BankCode).HasMaxLength(20);
+            branch.Property(value => value.SepayAccountRef).HasMaxLength(100);
         });
     }
     async Task IUnitOfWork.SaveChangesAsync(CancellationToken cancellationToken) => await SaveChangesAsync(cancellationToken);

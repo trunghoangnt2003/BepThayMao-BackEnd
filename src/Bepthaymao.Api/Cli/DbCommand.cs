@@ -1,9 +1,6 @@
 using Bepthaymao.Application;
-using Bepthaymao.Application.Abstractions.Messaging;
-using Bepthaymao.Application.Branches.UpsertBranches;
 using Bepthaymao.Infrastructure;
 using Bepthaymao.Infrastructure.Persistence;
-using Bepthaymao.Infrastructure.Seeding;
 using Microsoft.EntityFrameworkCore;
 
 namespace Bepthaymao.Api.Cli;
@@ -29,6 +26,7 @@ internal static class DbCommand
             HostApplicationBuilder builder = Host.CreateApplicationBuilder();
             builder.Logging.ClearProviders();
             builder.Services.AddApplication().AddInfrastructure(builder.Configuration);
+            builder.Services.AddScoped<SeedRunner>();
             using IHost host = builder.Build();
             using IServiceScope scope = host.Services.CreateScope();
             if (args[0] == "migrate")
@@ -38,10 +36,12 @@ internal static class DbCommand
             }
             else
             {
-                var items = await BranchSeedFile.ReadAsync(path, CancellationToken.None);
-                var handler = scope.ServiceProvider.GetRequiredService<ICommandHandler<UpsertBranchesCommand, UpsertBranchesResult>>();
-                UpsertBranchesResult result = await handler.Handle(new(items), CancellationToken.None);
-                Console.WriteLine(FormattableString.Invariant($"inserted={result.Inserted} updated={result.Updated} unchanged={result.Unchanged}"));
+                SeedResult result = await scope.ServiceProvider.GetRequiredService<SeedRunner>().RunAsync(new(
+                    Environment.GetEnvironmentVariable("SEED_OWNER_USERNAME") ?? "owner",
+                    Environment.GetEnvironmentVariable("SEED_OWNER_NAME") ?? "Chủ sở hữu",
+                    Environment.GetEnvironmentVariable("SEED_OWNER_PASSWORD"), path,
+                    builder.Environment.EnvironmentName, Environment.GetEnvironmentVariable("SEED_MANAGER_PASSWORD")), CancellationToken.None);
+                Console.WriteLine(FormattableString.Invariant($"owner={result.Owner} inserted={result.Inserted} updated={result.Updated} unchanged={result.Unchanged} managers={result.Managers}"));
             }
             return 0;
         }

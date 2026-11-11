@@ -36,6 +36,7 @@ public static class DependencyInjection
         }).AddRoles<IdentityRole<Guid>>().AddEntityFrameworkStores<AppDbContext>();
         services.AddScoped<IUserAuthenticator, IdentityUserAuthenticator>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
+        services.AddScoped<Seeding.AccountSeeder>();
         return services;
     }
 }

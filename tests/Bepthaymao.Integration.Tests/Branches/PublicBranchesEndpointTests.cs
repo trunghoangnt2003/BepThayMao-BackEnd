@@ -3,7 +3,8 @@ using System.Text.Json;
 using Bepthaymao.Application.Abstractions.Messaging;
 using Bepthaymao.Application.Branches.UpsertBranches;
 using Bepthaymao.Infrastructure.Persistence;
-using Bepthaymao.Infrastructure.Seeding;
+using Bepthaymao.Api.Cli;
+using Bepthaymao.Domain.Owners;
 using Bepthaymao.Integration.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,10 +21,10 @@ public sealed class PublicBranchesEndpointTests(InfrastructureFixture infrastruc
         using IServiceScope scope = factory.Services.CreateScope();
         AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.MigrateAsync(TestContext.Current.CancellationToken);
-        var items = await BranchSeedFile.ReadAsync(Path.Combine(RepositoryPaths.Root, "seed", "branches.sample.json"), TestContext.Current.CancellationToken);
-        var handler = scope.ServiceProvider.GetRequiredService<ICommandHandler<UpsertBranchesCommand, UpsertBranchesResult>>();
-        Assert.Equal(new(3, 0, 0), await handler.Handle(new(items), TestContext.Current.CancellationToken));
-        Assert.Equal(new(0, 0, 3), await handler.Handle(new(items), TestContext.Current.CancellationToken));
+        SeedRunner runner = scope.ServiceProvider.GetRequiredService<SeedRunner>();
+        SeedOptions options = new("public-owner", "Test owner", "test-seed-password", Path.Combine(RepositoryPaths.Root, "seed", "branches.sample.json"), "Development", null);
+        Assert.Equal(new("created", 3, 0, 0, 0), await runner.RunAsync(options, TestContext.Current.CancellationToken));
+        Assert.Equal(new("unchanged", 0, 0, 3, 0), await runner.RunAsync(options, TestContext.Current.CancellationToken));
         Assert.Equal(3, await db.Branches.CountAsync(TestContext.Current.CancellationToken));
         using HttpClient client = factory.CreateClient();
         using HttpResponseMessage response = await client.GetAsync("/api/v1/branches", TestContext.Current.CancellationToken);
@@ -44,11 +45,14 @@ public sealed class PublicBranchesEndpointTests(InfrastructureFixture infrastruc
         AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.MigrateAsync(TestContext.Current.CancellationToken);
         Guid id = Guid.CreateVersion7();
+        Guid ownerId = Guid.CreateVersion7();
+        db.Owners.Add(Owner.Create(ownerId, "Test owner", DateTimeOffset.UtcNow));
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         await Assert.ThrowsAsync<Npgsql.PostgresException>(async () =>
-            await db.Database.ExecuteSqlAsync($"INSERT INTO branches (id,name,address,phone,open_time,close_time,is_active,created_at) VALUES ({id}, 'Test', 'Test', '0901234567', TIME '21:00', TIME '06:00', true, CURRENT_TIMESTAMP)", TestContext.Current.CancellationToken));
+            await db.Database.ExecuteSqlAsync($"INSERT INTO branches (id,owner_id,lat,lng,name,address,phone,open_time,close_time,is_active,created_at) VALUES ({id},{ownerId},10,106, 'Test', 'Test', '0901234567', TIME '21:00', TIME '06:00', true, CURRENT_TIMESTAMP)", TestContext.Current.CancellationToken));
         var handler = scope.ServiceProvider.GetRequiredService<ICommandHandler<UpsertBranchesCommand, UpsertBranchesResult>>();
         BranchUpsertItem valid = new(id, "Mẫu", "Mẫu", "0901234567", "06:00", "21:30", true);
-        await Assert.ThrowsAsync<Domain.Common.DomainRuleException>(() => handler.Handle(new([valid, valid with { Id = Guid.CreateVersion7(), Phone = "bad" }]), TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<Domain.Common.DomainRuleException>(() => handler.Handle(new(ownerId, [valid, valid with { Id = Guid.CreateVersion7(), Phone = "bad" }]), TestContext.Current.CancellationToken));
         using IServiceScope freshScope = factory.Services.CreateScope();
         Assert.Equal(0, await freshScope.ServiceProvider.GetRequiredService<AppDbContext>().Branches.CountAsync(TestContext.Current.CancellationToken));
     }

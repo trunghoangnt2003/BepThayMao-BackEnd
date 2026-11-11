@@ -5,14 +5,17 @@ using FluentValidation;
 
 namespace Bepthaymao.Application.Branches.UpsertBranches;
 
-public sealed record BranchUpsertItem(Guid Id, string Name, string Address, string Phone, string OpenTime, string CloseTime, bool IsActive);
-public sealed record UpsertBranchesCommand(IReadOnlyList<BranchUpsertItem> Branches) : ICommand<UpsertBranchesResult>;
+public sealed record BranchUpsertItem(Guid Id, string Name, string Address, string Phone, string OpenTime, string CloseTime, bool IsActive,
+    double Lat = 0, double Lng = 0, int AbandonedThresholdMinutes = 10, IReadOnlyList<string>? ZaloRecipientIds = null,
+    string? BankAccountNo = null, string? BankCode = null, string? SepayAccountRef = null, string? ManagerIdentifier = null);
+public sealed record UpsertBranchesCommand(Guid OwnerId, IReadOnlyList<BranchUpsertItem> Branches) : ICommand<UpsertBranchesResult>;
 public sealed record UpsertBranchesResult(int Inserted, int Updated, int Unchanged);
 
 internal sealed class UpsertBranchesCommandValidator : AbstractValidator<UpsertBranchesCommand>
 {
     public UpsertBranchesCommandValidator()
     {
+        RuleFor(command => command.OwnerId).NotEmpty();
         RuleFor(command => command.Branches).NotEmpty();
         RuleForEach(command => command.Branches).ChildRules(item =>
         {
@@ -46,12 +49,14 @@ internal sealed class UpsertBranchesCommandHandler(IBranchRepository repository,
             TimeOnly open = TimeOnly.ParseExact(item.OpenTime, "HH:mm", CultureInfo.InvariantCulture);
             TimeOnly close = TimeOnly.ParseExact(item.CloseTime, "HH:mm", CultureInfo.InvariantCulture);
             Branch? branch = await repository.FindAsync(item.Id, cancellationToken);
+            BranchDetails details = new(item.Name, item.Address, item.Phone, item.Lat, item.Lng, open, close,
+                item.AbandonedThresholdMinutes, item.ZaloRecipientIds ?? [], item.BankAccountNo, item.BankCode, item.SepayAccountRef, item.IsActive);
             if (branch is null)
             {
-                repository.Add(Branch.Create(item.Id, item.Name, item.Address, item.Phone, open, close, item.IsActive, clock.GetUtcNow()));
+                repository.Add(Branch.Create(item.Id, command.OwnerId, details, clock.GetUtcNow()));
                 inserted++;
             }
-            else if (branch.ApplyDetails(item.Name, item.Address, item.Phone, open, close, item.IsActive)) updated++;
+            else if (branch.ApplyOwnerDetails(details)) updated++;
             else unchanged++;
         }
         return new(inserted, updated, unchanged);

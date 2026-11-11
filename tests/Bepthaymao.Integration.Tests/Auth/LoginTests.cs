@@ -53,7 +53,9 @@ public sealed class LoginTests(InfrastructureFixture infrastructure) : IClassFix
         Guid scopeId = Guid.CreateVersion7();
         if (role == UserRole.BranchManager)
         {
-            db.Branches.Add(Branch.Create(scopeId, "Branch", "Address", "0901234567", new(6, 0), new(21, 30), true, DateTimeOffset.UtcNow));
+            Guid branchOwner = Guid.CreateVersion7();
+            db.Owners.Add(Bepthaymao.Domain.Owners.Owner.Create(branchOwner, "Test owner", DateTimeOffset.UtcNow));
+            db.Branches.Add(Branch.Create(scopeId, branchOwner, new("Branch", "Address", "0901234567", 10, 106, new(6, 0), new(21, 30), 10, [], null, null, null, true), DateTimeOffset.UtcNow));
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
         var user = await AuthTestData.CreateUserAsync(scope.ServiceProvider, "scope-test", "test-password-only", role,
