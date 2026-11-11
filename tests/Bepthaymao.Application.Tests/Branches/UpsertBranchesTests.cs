@@ -35,8 +35,8 @@ public sealed class UpsertBranchesTests
         Assert.False((await validator.ValidateAsync(new UpsertBranchesCommand(ownerId, []), TestContext.Current.CancellationToken)).IsValid);
         BranchUpsertItem item = new(Guid.CreateVersion7(), "Mẫu", "Địa chỉ", "0901234567", "25:00", "21:30", true);
         var result = await validator.ValidateAsync(new UpsertBranchesCommand(ownerId, [item, item]), TestContext.Current.CancellationToken);
-        Assert.Contains(result.Errors, error => error.PropertyName == "Branches[0].OpenTime");
-        Assert.Contains(result.Errors, error => error.PropertyName == "Branches[1].Id");
+        Assert.Contains(result.Errors, error => error.PropertyName == "branches[0].openTime");
+        Assert.Contains(result.Errors, error => error.PropertyName == "branches[1].id");
         Assert.True((await validator.ValidateAsync(new UpsertBranchesCommand(ownerId, [item with { OpenTime = "06:00" }]), TestContext.Current.CancellationToken)).IsValid);
     }
 
