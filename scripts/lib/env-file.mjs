@@ -37,6 +37,6 @@ export function buildApiEnv(env) {
     'SePay__Mode': env['SePay__Mode'] ?? 'Fake',
     'Zalo__Mode': env['Zalo__Mode'] ?? 'Fake',
     Auth__RefreshCookie__Secure: env.Auth__RefreshCookie__Secure ?? 'false',
-    ...Object.fromEntries(Object.entries(env).filter(([key]) => key.startsWith('Jwt__') || key.startsWith('Auth__'))),
+    ...Object.fromEntries(Object.entries(env).filter(([key]) => key.startsWith('Jwt__') || key.startsWith('Auth__') || key.startsWith('SEED_'))),
   };
 }

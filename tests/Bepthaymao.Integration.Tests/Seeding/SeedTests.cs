@@ -83,8 +83,7 @@ public sealed class SeedTests(InfrastructureFixture infrastructure) : IClassFixt
         await using ApiFactory factory = await CreateFactory();
         using IServiceScope scope = factory.Services.CreateScope();
         SeedRunner runner = scope.ServiceProvider.GetRequiredService<SeedRunner>();
-        Exception error = await Assert.ThrowsAnyAsync<Exception>(() => runner.RunAsync(new("owner", "Owner", password, _sampleFile, "Development", null), TestContext.Current.CancellationToken));
-        Assert.Equal("SeedConfigurationException", error.GetType().Name);
+        await Assert.ThrowsAsync<SeedConfigurationException>(() => runner.RunAsync(new("owner", "Owner", password, _sampleFile, "Development", null), TestContext.Current.CancellationToken));
         await AssertNoWrites(factory);
     }
 
@@ -97,8 +96,7 @@ public sealed class SeedTests(InfrastructureFixture infrastructure) : IClassFixt
         Assert.Equal(0, result.Inserted);
         Assert.Equal(1, await scope.ServiceProvider.GetRequiredService<AppDbContext>().Owners.CountAsync(TestContext.Current.CancellationToken));
         // CLI must make the skip visible; verify result metadata without requiring a console logger.
-        string? note = typeof(SeedResult).GetProperty("Note")?.GetValue(result) as string;
-        Assert.Contains("bỏ qua cơ sở mẫu", note ?? "", StringComparison.Ordinal);
+        Assert.Contains("bỏ qua cơ sở mẫu", result.Note ?? "", StringComparison.Ordinal);
     }
 
     [Fact]
@@ -150,8 +148,7 @@ public sealed class SeedTests(InfrastructureFixture infrastructure) : IClassFixt
         {
             await using ApiFactory factory = await CreateFactory();
             using IServiceScope scope = factory.Services.CreateScope();
-            Exception error = await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.GetRequiredService<SeedRunner>().RunAsync(new("owner", "Owner", _password, path, "Development", null), TestContext.Current.CancellationToken));
-            Assert.Equal("SeedConfigurationException", error.GetType().Name);
+            await Assert.ThrowsAsync<SeedConfigurationException>(() => scope.ServiceProvider.GetRequiredService<SeedRunner>().RunAsync(new("owner", "Owner", _password, path, "Development", null), TestContext.Current.CancellationToken));
             await AssertNoWrites(factory);
         }
         finally { File.Delete(path); }

@@ -42,8 +42,14 @@ internal static class DbCommand
                     Environment.GetEnvironmentVariable("SEED_OWNER_PASSWORD"), path,
                     builder.Environment.EnvironmentName, Environment.GetEnvironmentVariable("SEED_MANAGER_PASSWORD")), CancellationToken.None);
                 Console.WriteLine(FormattableString.Invariant($"owner={result.Owner} inserted={result.Inserted} updated={result.Updated} unchanged={result.Unchanged} managers={result.Managers}"));
+                if (result.Note is not null) Console.WriteLine(result.Note);
             }
             return 0;
+        }
+        catch (SeedConfigurationException exception)
+        {
+            Console.Error.WriteLine(exception.Message);
+            return 2;
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {

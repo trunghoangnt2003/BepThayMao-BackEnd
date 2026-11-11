@@ -27,10 +27,22 @@ trả cơ sở hoạt động với đúng sáu trường công khai; OpenAPI xu
 chưa có. Nếu cổng 5432 bị Windows giữ, đổi POSTGRES_PORT trong deploy/.env sang cổng
 trống, ví dụ 25432. Không commit tệp này.
 
-Chạy `npm run dev:db -- migrate`, rồi `npm run dev:db -- seed` hai lần. Lần hai phải
-in `inserted=0 updated=0 unchanged=3`. Dữ liệu mẫu có tên/địa chỉ giả. Dùng
-SEED_BRANCHES_FILE để cấp dữ liệu thật ngoài Git. Seed kiểm toàn bộ và SaveChanges
-một lần, không ghi một phần khi có lỗi. Migration không tự chạy lúc API khởi động.
+Đặt `SEED_OWNER_PASSWORD` (tối thiểu 10 ký tự) trong `deploy/.env` bị Git bỏ qua;
+seed không tự sinh hoặc in mật khẩu. Tùy chọn `SEED_OWNER_USERNAME` (mặc định
+`owner`), `SEED_OWNER_NAME` (mặc định `Chủ sở hữu`) và `SEED_MANAGER_PASSWORD`
+khi tệp có `managerIdentifier` cần tạo mới. Chạy `npm run dev:db -- migrate`, rồi
+`npm run dev:db -- seed` hai lần. Lần hai phải in
+`owner=unchanged inserted=0 updated=0 unchanged=3 managers=0`; mật khẩu đã có
+không bị đặt lại. Dữ liệu mẫu chỉ nạp ở Development; môi trường khác tạo Owner
+và báo bỏ qua cơ sở mẫu. Dùng `SEED_BRANCHES_FILE` hoặc `--file` cho tệp thật
+ngoài Git. Mọi ghi seed nằm trong một transaction, không lưu một phần khi lỗi.
+Migration không tự chạy lúc API khởi động.
+
+DB dev còn cơ sở mẫu của Phase 1 chưa có Owner không thể nâng cấp bằng migration
+`AddBranchOwnershipAndSettings` (không tự gán chủ giả). Chỉ khi đã xác nhận được
+xóa dữ liệu dev đó, tạo lại bằng `npm run dev:down -- --volumes`, `npm run dev:up`,
+`npm run dev:db -- migrate`, rồi `npm run dev:db -- seed`. Lệnh có `--volumes`
+xóa dữ liệu; không dùng cho DB cần giữ.
 
 `npm run dev:api` chạy API ở 5080; `/health/live` độc lập hạ tầng, `/health/ready`
 kiểm đủ ba dịch vụ và cấu hình. Traefik ở http://127.0.0.1:8080 định tuyến /api,
