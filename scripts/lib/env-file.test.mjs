@@ -36,3 +36,9 @@ test('JWT signing key is generated once with 48 bytes and auth settings reach AP
     assert.equal(api.Auth__RefreshCookie__Secure, 'false');
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
+
+test('seed account configuration reaches the CLI without generated passwords', () => {
+  const input = { SEED_OWNER_USERNAME: 'owner', SEED_OWNER_NAME: 'Owner', SEED_OWNER_PASSWORD: 'test-seed-only-password', SEED_MANAGER_PASSWORD: 'test-manager-only-password' };
+  const actual = buildApiEnv(input);
+  for (const [key, value] of Object.entries(input)) assert.equal(actual[key], value);
+});
