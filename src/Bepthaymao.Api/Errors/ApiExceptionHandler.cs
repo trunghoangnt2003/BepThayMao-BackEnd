@@ -33,6 +33,14 @@ internal sealed class ApiExceptionHandler(
                 Title = "Authentication failed.",
             };
         }
+        else if (exception is ForbiddenException)
+        {
+            problemDetails = new ProblemDetails
+            {
+                Status = StatusCodes.Status403Forbidden,
+                Title = "Forbidden.",
+            };
+        }
         else if (exception is ValidationException validationException)
         {
             problemDetails = new HttpValidationProblemDetails(validationException.Errors)

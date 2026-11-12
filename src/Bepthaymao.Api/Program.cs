@@ -32,7 +32,7 @@ app.UseApiErrorHandling();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
-app.NewVersionedApi("Bepthaymao").MapGroup("/api/v{version:apiVersion}").HasApiVersion(1.0).MapPublicBranchesEndpoints().MapAuthEndpoints();
+app.NewVersionedApi("Bepthaymao").MapGroup("/api/v{version:apiVersion}").HasApiVersion(1.0).MapPublicBranchesEndpoints().MapAuthEndpoints().MapOwnerBranchesEndpoints();
 app.MapOpenApi().WithDocumentPerVersion().AllowAnonymous();
 app.MapApiHealthEndpoints();
 await app.RunAsync();

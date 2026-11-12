@@ -188,10 +188,256 @@
           }
         }
       }
+    },
+    "/api/v1/owner/branches": {
+      "post": {
+        "tags": [
+          "Owner"
+        ],
+        "summary": "Tạo cơ sở kèm tài khoản quản lý",
+        "description": "Tạo cơ sở kèm tài khoản quản lý trong một transaction; trả 409 khi tên đăng nhập trùng.",
+        "operationId": "createOwnerBranch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBranchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BranchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "BranchOwnerSettingsRequest": {
+        "required": [
+          "name",
+          "address",
+          "phone",
+          "lat",
+          "lng",
+          "openTime",
+          "closeTime",
+          "abandonedThresholdMinutes",
+          "zaloRecipientIds",
+          "isActive"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "lat": {
+            "type": "number",
+            "format": "double"
+          },
+          "lng": {
+            "type": "number",
+            "format": "double"
+          },
+          "openTime": {
+            "type": "string"
+          },
+          "closeTime": {
+            "type": "string"
+          },
+          "abandonedThresholdMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "zaloRecipientIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "bankAccountNo": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bankCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sepayAccountRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "BranchResponse": {
+        "required": [
+          "id",
+          "name",
+          "address",
+          "lat",
+          "lng",
+          "phone",
+          "isActive",
+          "openTime",
+          "closeTime",
+          "abandonedThresholdMinutes",
+          "zaloRecipientIds",
+          "bankAccountNo",
+          "bankCode",
+          "sepayAccountRef",
+          "managerIdentifier"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "lat": {
+            "type": "number",
+            "format": "double"
+          },
+          "lng": {
+            "type": "number",
+            "format": "double"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "openTime": {
+            "type": "string"
+          },
+          "closeTime": {
+            "type": "string"
+          },
+          "abandonedThresholdMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "zaloRecipientIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "bankAccountNo": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bankCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sepayAccountRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "managerIdentifier": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CreateBranchRequest": {
+        "required": [
+          "branch",
+          "manager"
+        ],
+        "type": "object",
+        "properties": {
+          "branch": {
+            "$ref": "#/components/schemas/BranchOwnerSettingsRequest"
+          },
+          "manager": {
+            "$ref": "#/components/schemas/ManagerAccountRequest"
+          }
+        },
+        "additionalProperties": false
+      },
       "LoginRequest": {
         "required": [
           "identifier",
@@ -206,6 +452,22 @@
           "password": {
             "maxLength": 128,
             "minLength": 10,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ManagerAccountRequest": {
+        "required": [
+          "identifier",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "identifier": {
+            "type": "string"
+          },
+          "password": {
             "type": "string"
           }
         },
@@ -329,6 +591,9 @@
     },
     {
       "name": "Auth"
+    },
+    {
+      "name": "Owner"
     }
   ]
 }

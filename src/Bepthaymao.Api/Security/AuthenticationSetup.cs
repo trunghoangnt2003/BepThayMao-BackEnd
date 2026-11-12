@@ -1,5 +1,6 @@
 using System.Text;
 using Bepthaymao.Api.Hosting;
+using Bepthaymao.Application.Abstractions.Security;
 using Bepthaymao.Application.Auth;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -62,6 +63,8 @@ internal static class AuthenticationSetup
             options.AddPolicy(PolicyNames.OwnerOnly, policy => policy.RequireAuthenticatedUser().RequireRole("Owner").RequireClaim("owner_id"));
             options.AddPolicy(PolicyNames.ManagerOnly, policy => policy.RequireAuthenticatedUser().RequireRole("BranchManager").RequireClaim("branch_id"));
         });
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUser, HttpCurrentUser>();
         services.AddScoped<IAccessTokenIssuer, JwtAccessTokenIssuer>();
         return services;
     }
