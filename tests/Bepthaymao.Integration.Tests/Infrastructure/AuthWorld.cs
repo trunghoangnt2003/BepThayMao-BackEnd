@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Bepthaymao.Application.Abstractions.Security;
 using Bepthaymao.Application.Auth;
 using Bepthaymao.Domain.Branches;
 using Bepthaymao.Infrastructure.Persistence;
@@ -8,6 +9,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Bepthaymao.Integration.Tests.Infrastructure;
+
+internal sealed record TestDataScope(bool IsSystem, Guid? OwnerId, Guid? BranchId) : IDataScope;
 
 internal enum AuthSubject { Anonymous, Owner1, Owner2, ManagerA1, ManagerA2, ManagerB1 }
 
@@ -20,9 +23,14 @@ internal sealed class AuthWorld : IAsyncDisposable
     public const string Password = "test-password-only";
     private readonly List<HttpClient> _clients = [];
 
-    private AuthWorld(ApiFactory factory) => Factory = factory;
+    private AuthWorld(ApiFactory factory, string connectionString)
+    {
+        Factory = factory;
+        ConnectionString = connectionString;
+    }
 
     public ApiFactory Factory { get; }
+    public string ConnectionString { get; }
     public Guid Owner1Id { get; private init; }
     public Guid Owner2Id { get; private init; }
     public Guid BranchA1 { get; } = Guid.CreateVersion7();
@@ -41,12 +49,13 @@ internal sealed class AuthWorld : IAsyncDisposable
 
     public static async Task<AuthWorld> CreateAsync(InfrastructureFixture infrastructure)
     {
+        string connectionString = await infrastructure.CreateDatabaseAsync();
         ApiFactory factory = new(new Dictionary<string, string?>
         {
-            ["ConnectionStrings:Default"] = await infrastructure.CreateDatabaseAsync(),
+            ["ConnectionStrings:Default"] = connectionString,
             ["RateLimiting:Public:PermitLimit"] = "1000",
         });
-        AuthWorld world = new(factory) { Owner1Id = Guid.CreateVersion7(), Owner2Id = Guid.CreateVersion7() };
+        AuthWorld world = new(factory, connectionString) { Owner1Id = Guid.CreateVersion7(), Owner2Id = Guid.CreateVersion7() };
         using IServiceScope scope = factory.Services.CreateScope();
         AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.MigrateAsync(TestContext.Current.CancellationToken);
@@ -83,6 +92,10 @@ internal sealed class AuthWorld : IAsyncDisposable
         using IServiceScope scope = Factory.Services.CreateScope();
         return await work(scope.ServiceProvider.GetRequiredService<AppDbContext>());
     }
+
+    /// <summary>Mở thêm một DbContext độc lập (cùng DB) với phạm vi dữ liệu chỉ định.</summary>
+    public AppDbContext OpenContext(IDataScope scope) => new(new DbContextOptionsBuilder<AppDbContext>()
+        .UseNpgsql(ConnectionString).UseSnakeCaseNamingConvention().Options, scope);
 
     public async ValueTask DisposeAsync()
     {
