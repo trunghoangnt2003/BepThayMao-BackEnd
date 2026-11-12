@@ -40,20 +40,14 @@ public sealed partial class Branch
             string? bankCode, string? sepayAccountRef, bool isActive) = details;
         name = name.Trim();
         address = address.Trim();
-        phone = string.Concat(phone.Where(character => !char.IsWhiteSpace(character) && character != '.'));
         if (name.Length is 0 or > 200) throw new DomainRuleException("name", "Nhập tên cơ sở (tối đa 200 ký tự).");
         if (address.Length is 0 or > 500) throw new DomainRuleException("address", "Nhập địa chỉ (tối đa 500 ký tự).");
-        if (!PhonePattern().IsMatch(phone)) throw new DomainRuleException("phone", "Nhập số điện thoại hợp lệ, ví dụ 0901 234 567.");
-        if (openTime >= closeTime) throw new DomainRuleException("openTime", "Giờ đóng phải sau giờ mở trong cùng một ngày.");
+        phone = NormalizePhone(phone);
+        EnsureOpensBeforeCloses(openTime, closeTime);
         if (!double.IsFinite(lat) || lat is < -90 or > 90) throw new DomainRuleException("lat", "Vĩ độ nằm trong khoảng từ -90 đến 90.");
         if (!double.IsFinite(lng) || lng is < -180 or > 180) throw new DomainRuleException("lng", "Kinh độ nằm trong khoảng từ -180 đến 180.");
-        if (abandonedThresholdMinutes is < 1 or > 1440) throw new DomainRuleException("abandonedThresholdMinutes", "Nhập số phút là số nguyên, tối thiểu 1.");
-        string[] normalizedIds = zaloRecipientIds.Select(value => value?.Trim() ?? "").ToArray();
-        if (normalizedIds.Length > 20 || normalizedIds.Any(value => value.Length is 0 or > 64))
-            throw new DomainRuleException("zaloRecipientIds", "Nhập tối đa 20 ID Zalo, mỗi ID từ 1 đến 64 ký tự.");
-        HashSet<string> uniqueIds = new(StringComparer.Ordinal);
-        foreach (string value in normalizedIds)
-            if (!uniqueIds.Add(value)) throw new DomainRuleException("zaloRecipientIds", $"ID Zalo bị trùng: {value}.");
+        EnsureThreshold(abandonedThresholdMinutes);
+        string[] normalizedIds = NormalizeZaloIds(zaloRecipientIds);
         bankAccountNo = NormalizeOptional(bankAccountNo, 50, "bankAccountNo");
         bankCode = NormalizeOptional(bankCode, 20, "bankCode");
         sepayAccountRef = NormalizeOptional(sepayAccountRef, 100, "sepayAccountRef");
@@ -66,9 +60,48 @@ public sealed partial class Branch
         return changed;
     }
 
-    // Chỗ giữ chữ ký để test RED biên dịch được; hiện thực thật ở commit feat kế tiếp.
+    /// <summary>Quản lý chỉ sửa năm trường này; danh tính, vị trí, trạng thái và tài khoản nhận tiền chỉ Chủ sở hữu sửa.</summary>
     public bool ApplyManagerSettings(string phone, TimeOnly openTime, TimeOnly closeTime, int abandonedThresholdMinutes,
-        IReadOnlyList<string> zaloRecipientIds) => Phone.Length < 0;
+        IReadOnlyList<string> zaloRecipientIds)
+    {
+        phone = NormalizePhone(phone);
+        EnsureOpensBeforeCloses(openTime, closeTime);
+        EnsureThreshold(abandonedThresholdMinutes);
+        string[] normalizedIds = NormalizeZaloIds(zaloRecipientIds);
+        bool changed = Phone != phone || OpenTime != openTime || CloseTime != closeTime ||
+            AbandonedThresholdMinutes != abandonedThresholdMinutes || !ZaloRecipientIds.SequenceEqual(normalizedIds);
+        (Phone, OpenTime, CloseTime, AbandonedThresholdMinutes, ZaloRecipientIds) =
+            (phone, openTime, closeTime, abandonedThresholdMinutes, [.. normalizedIds]);
+        return changed;
+    }
+
+    private static string NormalizePhone(string phone)
+    {
+        phone = string.Concat(phone.Where(character => !char.IsWhiteSpace(character) && character != '.'));
+        if (!PhonePattern().IsMatch(phone)) throw new DomainRuleException("phone", "Nhập số điện thoại hợp lệ, ví dụ 0901 234 567.");
+        return phone;
+    }
+
+    private static void EnsureOpensBeforeCloses(TimeOnly openTime, TimeOnly closeTime)
+    {
+        if (openTime >= closeTime) throw new DomainRuleException("openTime", "Giờ đóng phải sau giờ mở trong cùng một ngày.");
+    }
+
+    private static void EnsureThreshold(int abandonedThresholdMinutes)
+    {
+        if (abandonedThresholdMinutes is < 1 or > 1440) throw new DomainRuleException("abandonedThresholdMinutes", "Nhập số phút là số nguyên, tối thiểu 1.");
+    }
+
+    private static string[] NormalizeZaloIds(IReadOnlyList<string> zaloRecipientIds)
+    {
+        string[] normalizedIds = zaloRecipientIds.Select(value => value?.Trim() ?? "").ToArray();
+        if (normalizedIds.Length > 20 || normalizedIds.Any(value => value.Length is 0 or > 64))
+            throw new DomainRuleException("zaloRecipientIds", "Nhập tối đa 20 ID Zalo, mỗi ID từ 1 đến 64 ký tự.");
+        HashSet<string> uniqueIds = new(StringComparer.Ordinal);
+        foreach (string value in normalizedIds)
+            if (!uniqueIds.Add(value)) throw new DomainRuleException("zaloRecipientIds", $"ID Zalo bị trùng: {value}.");
+        return normalizedIds;
+    }
 
     private static string? NormalizeOptional(string? value, int maxLength, string field)
     {

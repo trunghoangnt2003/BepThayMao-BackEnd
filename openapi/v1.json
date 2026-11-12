@@ -382,6 +382,138 @@
           }
         ]
       }
+    },
+    "/api/v1/manager/branch/settings": {
+      "get": {
+        "tags": [
+          "Manager"
+        ],
+        "summary": "Thông số của cơ sở mình",
+        "description": "Chỉ vai trò BranchManager; cơ sở lấy từ claim branch_id, không nhận mã cơ sở trong đường dẫn hay thân.",
+        "operationId": "getManagerBranchSettings",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagerBranchView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Manager"
+        ],
+        "summary": "Cập nhật thông số cơ sở mình",
+        "description": "Cập nhật thông số cơ sở mình; trường chỉ Chủ sở hữu được sửa gửi lên bị 400. Không nhận mã cơ sở; chỉ vai trò BranchManager được gọi.",
+        "operationId": "updateManagerBranchSettings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BranchSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagerBranchView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -544,6 +676,39 @@
           }
         }
       },
+      "BranchSettingsRequest": {
+        "required": [
+          "phone",
+          "openTime",
+          "closeTime",
+          "abandonedThresholdMinutes",
+          "zaloRecipientIds"
+        ],
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string"
+          },
+          "openTime": {
+            "type": "string"
+          },
+          "closeTime": {
+            "type": "string"
+          },
+          "abandonedThresholdMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "zaloRecipientIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "description": "Đúng năm trường Quản lý được sửa; thành viên khác (name, isActive, lat, ngân hàng...) bị từ chối bằng 400."
+      },
       "CreateBranchRequest": {
         "required": [
           "branch",
@@ -594,6 +759,70 @@
           }
         },
         "additionalProperties": false
+      },
+      "ManagerBranchView": {
+        "required": [
+          "phone",
+          "openTime",
+          "closeTime",
+          "abandonedThresholdMinutes",
+          "zaloRecipientIds",
+          "name",
+          "address",
+          "isActive",
+          "bankAccountNo",
+          "bankCode",
+          "sepayAccountRef"
+        ],
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string"
+          },
+          "openTime": {
+            "type": "string"
+          },
+          "closeTime": {
+            "type": "string"
+          },
+          "abandonedThresholdMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "zaloRecipientIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "bankAccountNo": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bankCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sepayAccountRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
       },
       "ProblemDetails": {
         "required": [
@@ -724,6 +953,9 @@
     },
     {
       "name": "Owner"
+    },
+    {
+      "name": "Manager"
     }
   ]
 }
