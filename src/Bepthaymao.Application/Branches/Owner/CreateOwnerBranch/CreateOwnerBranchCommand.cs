@@ -27,9 +27,14 @@ internal sealed class CreateOwnerBranchCommandHandler(ICurrentUser currentUser, 
             TimeOnly.ParseExact(data.CloseTime, "HH:mm", CultureInfo.InvariantCulture),
             data.AbandonedThresholdMinutes, data.ZaloRecipientIds, data.BankAccountNo, data.BankCode, data.SepayAccountRef, data.IsActive);
         Branch branch = Branch.Create(Guid.CreateVersion7(), ownerId, details, clock.GetUtcNow());
-        repository.Add(branch);
-        string managerIdentifier = await managers.CreateManagerAsync(branch.Id, command.Manager.Identifier, command.Manager.Password, cancellationToken);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        string? managerIdentifier = null;
+        // UserManager tự gọi SaveChanges trên cùng DbContext: cơ sở, user và user_roles cùng nằm trong transaction này.
+        await unitOfWork.ExecuteInTransactionAsync(async token =>
+        {
+            repository.Add(branch);
+            managerIdentifier = await managers.CreateManagerAsync(branch.Id, command.Manager.Identifier, command.Manager.Password, token);
+            await unitOfWork.SaveChangesAsync(token);
+        }, cancellationToken);
         return BranchResponse.From(branch, managerIdentifier);
     }
 }

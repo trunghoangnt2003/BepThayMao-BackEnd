@@ -50,5 +50,7 @@ public sealed class CqrsRegistrationTests
             RegistrationHandler.Events.Add("unit-of-work");
             return Task.CompletedTask;
         }
+
+        public Task ExecuteInTransactionAsync(Func<CancellationToken, Task> work, CancellationToken cancellationToken) => work(cancellationToken);
     }
 }

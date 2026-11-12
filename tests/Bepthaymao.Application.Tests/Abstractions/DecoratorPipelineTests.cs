@@ -130,6 +130,8 @@ public sealed class DecoratorPipelineTests
             events.Add("unit-of-work");
             return Task.CompletedTask;
         }
+
+        public Task ExecuteInTransactionAsync(Func<CancellationToken, Task> work, CancellationToken cancellationToken) => work(cancellationToken);
     }
 
     private sealed class TestCommandValidator : AbstractValidator<TestCommand>

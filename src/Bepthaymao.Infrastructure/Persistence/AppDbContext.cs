@@ -5,6 +5,7 @@ using Bepthaymao.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Bepthaymao.Infrastructure.Persistence;
 
@@ -76,4 +77,20 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
         });
     }
     async Task IUnitOfWork.SaveChangesAsync(CancellationToken cancellationToken) => await SaveChangesAsync(cancellationToken);
+
+    async Task IUnitOfWork.ExecuteInTransactionAsync(Func<CancellationToken, Task> work, CancellationToken cancellationToken)
+    {
+        await using IDbContextTransaction transaction = await Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            await work(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            ChangeTracker.Clear();
+            throw;
+        }
+    }
 }
