@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Bepthaymao.Integration.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -92,5 +94,58 @@ public sealed class CreateBranchTests(InfrastructureFixture infrastructure) : IC
         Assert.Equal(usersBefore, await world.WithDbAsync(db => db.Users.CountAsync(TestContext.Current.CancellationToken)));
         Assert.Equal(rolesBefore, await world.WithDbAsync(db => db.UserRoles.CountAsync(TestContext.Current.CancellationToken)));
         Assert.False(await world.WithDbAsync(db => db.Users.AnyAsync(user => user.UserName == "quanly-loi-vai-tro", TestContext.Current.CancellationToken)));
+    }
+
+    [Theory]
+    [InlineData("branch", "closeTime", "\"05:00\"", "branch.openTime")]
+    [InlineData("branch", "openTime", "\"6:00\"", "branch.openTime")]
+    [InlineData("branch", "phone", "\"12345\"", "branch.phone")]
+    [InlineData("branch", "lat", "91", "branch.lat")]
+    [InlineData("branch", "abandonedThresholdMinutes", "0", "branch.abandonedThresholdMinutes")]
+    [InlineData("branch", "zaloRecipientIds", "[\"a\",\"a\"]", "branch.zaloRecipientIds")]
+    [InlineData("manager", "password", "\"123456789\"", "manager.password")]
+    [InlineData("manager", "identifier", "\"co khoang trang\"", "manager.identifier")]
+    public async Task InvalidBodyReturnsCamelCaseErrors(string section, string field, string json, string expectedKey)
+    {
+        await using AuthWorld world = await AuthWorld.CreateAsync(infrastructure);
+        using HttpClient owner = await world.ClientForAsync(AuthSubject.Owner1);
+        JsonObject body = JsonSerializer.SerializeToNode(ValidBody("quanly-hop-le"))!.AsObject();
+        body[section]![field] = JsonNode.Parse(json);
+        using StringContent content = new(body.ToJsonString(), Encoding.UTF8, "application/json");
+        using HttpResponseMessage response = await owner.PostAsync("/api/v1/owner/branches", content, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using JsonDocument problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.True(problem.RootElement.GetProperty("errors").TryGetProperty(expectedKey, out _), $"Thiếu khóa lỗi {expectedKey}.");
+        Assert.Equal(0, await world.WithDbAsync(db => db.Users.CountAsync(user => user.UserName == "quanly-hop-le", TestContext.Current.CancellationToken)));
+    }
+
+    [Theory]
+    [InlineData("branch", "ownerId", "\"00000000-0000-0000-0000-000000000001\"")]
+    [InlineData("manager", "role", "\"Owner\"")]
+    public async Task UnknownMembersReturn400(string section, string field, string json)
+    {
+        await using AuthWorld world = await AuthWorld.CreateAsync(infrastructure);
+        using HttpClient owner = await world.ClientForAsync(AuthSubject.Owner1);
+        JsonObject body = JsonSerializer.SerializeToNode(ValidBody("quanly-la"))!.AsObject();
+        body[section]![field] = JsonNode.Parse(json);
+        using StringContent content = new(body.ToJsonString(), Encoding.UTF8, "application/json");
+        using HttpResponseMessage response = await owner.PostAsync("/api/v1/owner/branches", content, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        Assert.False(await world.WithDbAsync(db => db.Users.AnyAsync(user => user.UserName == "quanly-la", TestContext.Current.CancellationToken)));
+    }
+
+    [Fact]
+    public async Task RoleAndAnonymousAreRejected()
+    {
+        await using AuthWorld world = await AuthWorld.CreateAsync(infrastructure);
+        using HttpClient manager = await world.ClientForAsync(AuthSubject.ManagerA1);
+        using HttpClient anonymous = await world.ClientForAsync(AuthSubject.Anonymous);
+        Assert.Equal(HttpStatusCode.Forbidden, (await manager.PostAsJsonAsync("/api/v1/owner/branches", ValidBody("quanly-sai-quyen"), TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await manager.GetAsync("/api/v1/owner/branches", TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await manager.GetAsync($"/api/v1/owner/branches/{world.BranchA1}", TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.PostAsJsonAsync("/api/v1/owner/branches", ValidBody("quanly-an-danh"), TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync("/api/v1/owner/branches", TestContext.Current.CancellationToken)).StatusCode);
+        Assert.False(await world.WithDbAsync(db => db.Users.AnyAsync(user => user.UserName == "quanly-sai-quyen" || user.UserName == "quanly-an-danh", TestContext.Current.CancellationToken)));
     }
 }
