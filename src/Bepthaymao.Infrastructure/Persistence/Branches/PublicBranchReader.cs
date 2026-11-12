@@ -8,7 +8,7 @@ internal sealed class PublicBranchReader(AppDbContext context) : IPublicBranchRe
 {
     public async Task<IReadOnlyList<PublicBranch>> ListActiveAsync(CancellationToken cancellationToken)
     {
-        var branches = await context.Branches.AsNoTracking().Where(branch => branch.IsActive)
+        var branches = await context.Branches.AsNoTracking().IgnoreQueryFilters([AppDbContext.BranchScope]).Where(branch => branch.IsActive)
             .OrderBy(branch => branch.Name).ThenBy(branch => branch.Id)
             .Select(branch => new { branch.Id, branch.Name, branch.Address, branch.Phone, branch.OpenTime, branch.CloseTime })
             .ToListAsync(cancellationToken);

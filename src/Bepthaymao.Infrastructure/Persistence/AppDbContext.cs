@@ -1,6 +1,8 @@
+using System.Reflection;
 using Bepthaymao.Application.Abstractions.Persistence;
 using Bepthaymao.Application.Abstractions.Security;
 using Bepthaymao.Domain.Branches;
+using Bepthaymao.Domain.Common;
 using Bepthaymao.Domain.Owners;
 using Bepthaymao.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
@@ -21,9 +23,18 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataSc
     public DbSet<Branch> Branches => Set<Branch>();
     public DbSet<Owner> Owners => Set<Owner>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public const string BranchScope = "BranchScope";
+
+    private void ApplyBranchScope<T>(ModelBuilder builder) where T : class, IBranchScoped =>
+        builder.Entity<T>().HasQueryFilter(BranchScope, entity => IsSystemScope || (CurrentBranchId != null && entity.BranchId == CurrentBranchId));
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        MethodInfo applyBranchScope = typeof(AppDbContext).GetMethod(nameof(ApplyBranchScope), BindingFlags.NonPublic | BindingFlags.Instance)!;
+        foreach (Type clrType in builder.Model.GetEntityTypes().Select(entityType => entityType.ClrType)
+                     .Where(type => typeof(IBranchScoped).IsAssignableFrom(type)).ToList())
+            applyBranchScope.MakeGenericMethod(clrType).Invoke(this, [builder]);
         builder.Entity<AppUser>(user =>
         {
             user.ToTable("users");
@@ -70,6 +81,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataSc
                 table.HasCheckConstraint("ck_branches_lng", "lng BETWEEN -180 AND 180");
                 table.HasCheckConstraint("ck_branches_abandoned_threshold", "abandoned_threshold_minutes >= 1");
             });
+            branch.HasQueryFilter(BranchScope, value => IsSystemScope
+                || (CurrentOwnerId != null && value.OwnerId == CurrentOwnerId)
+                || (CurrentBranchId != null && value.Id == CurrentBranchId));
             branch.HasKey(value => value.Id);
             branch.Property(value => value.Id).ValueGeneratedNever();
             branch.Property(value => value.Name).HasMaxLength(200);
