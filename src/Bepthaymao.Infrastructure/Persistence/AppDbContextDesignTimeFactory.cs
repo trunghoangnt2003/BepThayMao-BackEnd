@@ -7,5 +7,5 @@ public sealed class AppDbContextDesignTimeFactory : IDesignTimeDbContextFactory<
 {
     public AppDbContext CreateDbContext(string[] args) => new(new DbContextOptionsBuilder<AppDbContext>()
         .UseNpgsql(Environment.GetEnvironmentVariable("ConnectionStrings__Default") ?? "Host=localhost;Database=bepthaymao;Username=postgres")
-        .UseSnakeCaseNamingConvention().Options);
+        .UseSnakeCaseNamingConvention().Options, new SystemDataScope());
 }

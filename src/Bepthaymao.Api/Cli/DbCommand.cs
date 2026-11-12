@@ -1,4 +1,5 @@
 using Bepthaymao.Application;
+using Bepthaymao.Application.Abstractions.Security;
 using Bepthaymao.Infrastructure;
 using Bepthaymao.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -26,6 +27,7 @@ internal static class DbCommand
             HostApplicationBuilder builder = Host.CreateApplicationBuilder();
             builder.Logging.ClearProviders();
             builder.Services.AddApplication().AddInfrastructure(builder.Configuration);
+            builder.Services.AddScoped<IDataScope, SystemDataScope>();
             builder.Services.AddScoped<SeedRunner>();
             using IHost host = builder.Build();
             using IServiceScope scope = host.Services.CreateScope();

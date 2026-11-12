@@ -64,7 +64,9 @@ internal static class AuthenticationSetup
             options.AddPolicy(PolicyNames.ManagerOnly, policy => policy.RequireAuthenticatedUser().RequireRole("BranchManager").RequireClaim("branch_id"));
         });
         services.AddHttpContextAccessor();
-        services.AddScoped<ICurrentUser, HttpCurrentUser>();
+        services.AddScoped<HttpCurrentUser>();
+        services.AddScoped<ICurrentUser>(provider => provider.GetRequiredService<HttpCurrentUser>());
+        services.AddScoped<IDataScope>(provider => provider.GetRequiredService<HttpCurrentUser>());
         services.AddScoped<IAccessTokenIssuer, JwtAccessTokenIssuer>();
         return services;
     }

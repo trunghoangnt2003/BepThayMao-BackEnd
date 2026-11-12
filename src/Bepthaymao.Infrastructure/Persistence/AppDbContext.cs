@@ -1,4 +1,5 @@
 using Bepthaymao.Application.Abstractions.Persistence;
+using Bepthaymao.Application.Abstractions.Security;
 using Bepthaymao.Domain.Branches;
 using Bepthaymao.Domain.Owners;
 using Bepthaymao.Infrastructure.Identity;
@@ -9,8 +10,14 @@ using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Bepthaymao.Infrastructure.Persistence;
 
-public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>(options), IUnitOfWork
+public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataScope scope) : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>(options), IUnitOfWork
 {
+    // Thành viên của DbContext (không phải hằng số): EF thay bằng chính instance đang truy vấn nên mô hình
+    // được cache theo kiểu context vẫn cô lập đúng từng phạm vi (P17).
+    private bool IsSystemScope => scope.IsSystem;
+    private Guid? CurrentOwnerId => scope.OwnerId;
+    private Guid? CurrentBranchId => scope.BranchId;
+
     public DbSet<Branch> Branches => Set<Branch>();
     public DbSet<Owner> Owners => Set<Owner>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
