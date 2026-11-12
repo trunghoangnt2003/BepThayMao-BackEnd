@@ -7,6 +7,7 @@ using Bepthaymao.Domain.Branches;
 using Bepthaymao.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Bepthaymao.Api.Security;
 
 namespace Bepthaymao.Integration.Tests.Infrastructure;
 
@@ -56,7 +57,7 @@ internal sealed class AuthWorld : IAsyncDisposable
             ["RateLimiting:Public:PermitLimit"] = "1000",
         });
         AuthWorld world = new(factory, connectionString) { Owner1Id = Guid.CreateVersion7(), Owner2Id = Guid.CreateVersion7() };
-        using IServiceScope scope = factory.Services.CreateScope();
+        using IServiceScope scope = factory.Services.CreateSystemScope();
         AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.MigrateAsync(TestContext.Current.CancellationToken);
         await AuthTestData.CreateUserAsync(scope.ServiceProvider, IdentifierOf(AuthSubject.Owner1), Password, UserRole.Owner, world.Owner1Id);
@@ -86,10 +87,10 @@ internal sealed class AuthWorld : IAsyncDisposable
         return client;
     }
 
-    /// <summary>Chạy truy vấn bằng DbContext ngoài yêu cầu HTTP (phạm vi hệ thống).</summary>
+    /// <summary>Chạy truy vấn bằng DbContext ngoài yêu cầu HTTP, cấp quyền hệ thống tường minh.</summary>
     public async Task<T> WithDbAsync<T>(Func<AppDbContext, Task<T>> work)
     {
-        using IServiceScope scope = Factory.Services.CreateScope();
+        using IServiceScope scope = Factory.Services.CreateSystemScope();
         return await work(scope.ServiceProvider.GetRequiredService<AppDbContext>());
     }
 

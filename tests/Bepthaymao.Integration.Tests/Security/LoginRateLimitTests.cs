@@ -7,6 +7,7 @@ using Bepthaymao.Infrastructure.Persistence;
 using Bepthaymao.Integration.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Bepthaymao.Api.Security;
 
 namespace Bepthaymao.Integration.Tests.Security;
 
@@ -71,7 +72,7 @@ public sealed class LoginRateLimitTests(InfrastructureFixture infrastructure) : 
     {
         settings["ConnectionStrings:Default"] = await infrastructure.CreateDatabaseAsync();
         ApiFactory factory = new(settings);
-        using IServiceScope scope = factory.Services.CreateScope();
+        using IServiceScope scope = factory.Services.CreateSystemScope();
         await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync(TestContext.Current.CancellationToken);
         await AuthTestData.CreateUserAsync(scope.ServiceProvider, "test-user", "test-password-only", UserRole.Owner, Guid.CreateVersion7());
         return factory;

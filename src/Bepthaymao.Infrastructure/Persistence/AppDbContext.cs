@@ -25,8 +25,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataSc
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public const string BranchScope = "BranchScope";
 
+    // Owner là superadmin trên cơ sở của mình (spec FR-003a): thấy bản ghi của mọi cơ sở có Branch.OwnerId trùng claim,
+    // không thấy cơ sở của Owner khác. Quản lý chỉ thấy cơ sở trong claim branch_id.
     private void ApplyBranchScope<T>(ModelBuilder builder) where T : class, IBranchScoped =>
-        builder.Entity<T>().HasQueryFilter(BranchScope, entity => IsSystemScope || (CurrentBranchId != null && entity.BranchId == CurrentBranchId));
+        builder.Entity<T>().HasQueryFilter(BranchScope, entity => IsSystemScope
+            || (CurrentBranchId != null && entity.BranchId == CurrentBranchId)
+            || (CurrentOwnerId != null && Branches.Any(branch => branch.Id == entity.BranchId && branch.OwnerId == CurrentOwnerId)));
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

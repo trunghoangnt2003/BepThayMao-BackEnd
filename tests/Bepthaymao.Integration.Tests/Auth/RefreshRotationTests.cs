@@ -8,6 +8,7 @@ using Bepthaymao.Integration.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.JsonWebTokens;
+using Bepthaymao.Api.Security;
 
 namespace Bepthaymao.Integration.Tests.Auth;
 
@@ -26,7 +27,7 @@ public sealed class RefreshRotationTests(InfrastructureFixture infrastructure) :
         using JsonDocument json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal(900, json.RootElement.GetProperty("expiresIn").GetInt32());
         Assert.Equal(["accessToken", "expiresIn", "identifier", "role"], json.RootElement.EnumerateObject().Select(value => value.Name).Order(StringComparer.Ordinal));
-        using IServiceScope scope = factory.Services.CreateScope();
+        using IServiceScope scope = factory.Services.CreateSystemScope();
         var tokens = await scope.ServiceProvider.GetRequiredService<AppDbContext>().RefreshTokens.OrderBy(value => value.CreatedAt).ToArrayAsync(TestContext.Current.CancellationToken);
         Assert.Equal(2, tokens.Length);
         Assert.NotNull(tokens[0].RevokedAt);
@@ -42,7 +43,7 @@ public sealed class RefreshRotationTests(InfrastructureFixture infrastructure) :
         using HttpClient client = factory.CreateClient();
         string cookie = await Login(client);
         Guid newBranch = Guid.CreateVersion7();
-        using (IServiceScope scope = factory.Services.CreateScope())
+        using (IServiceScope scope = factory.Services.CreateSystemScope())
         {
             AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             Guid branchOwner = Guid.CreateVersion7();
@@ -85,7 +86,7 @@ public sealed class RefreshRotationTests(InfrastructureFixture infrastructure) :
         {
             Assert.Single(responses, value => value.StatusCode == HttpStatusCode.OK);
             Assert.Single(responses, value => value.StatusCode == HttpStatusCode.Unauthorized);
-            using IServiceScope scope = factory.Services.CreateScope();
+            using IServiceScope scope = factory.Services.CreateSystemScope();
             var tokens = await scope.ServiceProvider.GetRequiredService<AppDbContext>().RefreshTokens.ToArrayAsync(TestContext.Current.CancellationToken);
             Assert.Equal(2, tokens.Length);
         }
@@ -111,7 +112,7 @@ public sealed class RefreshRotationTests(InfrastructureFixture infrastructure) :
         using HttpResponseMessage rejectedOtherSession = await Refresh(client, otherSession);
         Assert.Equal(HttpStatusCode.Unauthorized, rejectedSuccessor.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, rejectedOtherSession.StatusCode);
-        using IServiceScope scope = factory.Services.CreateScope();
+        using IServiceScope scope = factory.Services.CreateSystemScope();
         Assert.All(await scope.ServiceProvider.GetRequiredService<AppDbContext>().RefreshTokens.ToArrayAsync(TestContext.Current.CancellationToken),
             token => Assert.NotNull(token.RevokedAt));
     }
@@ -119,7 +120,7 @@ public sealed class RefreshRotationTests(InfrastructureFixture infrastructure) :
     private async Task<ApiFactory> CreateFactory(bool manager = false, TimeProvider? clock = null)
     {
         ApiFactory factory = new(new Dictionary<string, string?> { ["ConnectionStrings:Default"] = await infrastructure.CreateDatabaseAsync() }, clock);
-        using IServiceScope scope = factory.Services.CreateScope();
+        using IServiceScope scope = factory.Services.CreateSystemScope();
         AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.MigrateAsync(TestContext.Current.CancellationToken);
         Guid branch = Guid.CreateVersion7();

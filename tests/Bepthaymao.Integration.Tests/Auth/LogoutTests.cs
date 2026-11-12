@@ -6,6 +6,7 @@ using Bepthaymao.Infrastructure.Persistence;
 using Bepthaymao.Integration.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Bepthaymao.Api.Security;
 
 namespace Bepthaymao.Integration.Tests.Auth;
 
@@ -31,7 +32,7 @@ public sealed class LogoutTests(InfrastructureFixture infrastructure) : IClassFi
         using HttpResponseMessage rejectedOther = await Send(client, "/api/v1/auth/refresh", other);
         Assert.Equal(HttpStatusCode.Unauthorized, rejectedFirst.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, rejectedOther.StatusCode);
-        using IServiceScope scope = factory.Services.CreateScope();
+        using IServiceScope scope = factory.Services.CreateSystemScope();
         Assert.All(await scope.ServiceProvider.GetRequiredService<AppDbContext>().RefreshTokens.ToArrayAsync(TestContext.Current.CancellationToken),
             token => Assert.NotNull(token.RevokedAt));
     }
@@ -71,7 +72,7 @@ public sealed class LogoutTests(InfrastructureFixture infrastructure) : IClassFi
             ["ConnectionStrings:Default"] = await infrastructure.CreateDatabaseAsync(),
             ["Auth:AllowedOrigins:0"] = "https://admin.example.test",
         });
-        using IServiceScope scope = factory.Services.CreateScope();
+        using IServiceScope scope = factory.Services.CreateSystemScope();
         await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync(TestContext.Current.CancellationToken);
         await AuthTestData.CreateUserAsync(scope.ServiceProvider, "logout-test", "test-password-only", UserRole.Owner, Guid.CreateVersion7());
         return factory;

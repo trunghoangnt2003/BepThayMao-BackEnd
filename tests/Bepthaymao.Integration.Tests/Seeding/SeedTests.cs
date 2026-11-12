@@ -9,6 +9,7 @@ using Bepthaymao.Integration.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.JsonWebTokens;
+using Bepthaymao.Api.Security;
 
 namespace Bepthaymao.Integration.Tests.Seeding;
 
@@ -24,7 +25,7 @@ public sealed class SeedTests(InfrastructureFixture infrastructure) : IClassFixt
         {
             ["ConnectionStrings:Default"] = await infrastructure.CreateDatabaseAsync(),
         });
-        using IServiceScope scope = factory.Services.CreateScope();
+        using IServiceScope scope = factory.Services.CreateSystemScope();
         AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.MigrateAsync(TestContext.Current.CancellationToken);
         SeedRunner runner = scope.ServiceProvider.GetRequiredService<SeedRunner>();
@@ -46,7 +47,7 @@ public sealed class SeedTests(InfrastructureFixture infrastructure) : IClassFixt
     public async Task DatabaseRejectsOutOfRangeValues(double lat, int threshold, string constraint)
     {
         await using ApiFactory factory = new(new Dictionary<string, string?> { ["ConnectionStrings:Default"] = await infrastructure.CreateDatabaseAsync() });
-        using IServiceScope scope = factory.Services.CreateScope();
+        using IServiceScope scope = factory.Services.CreateSystemScope();
         AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.MigrateAsync(TestContext.Current.CancellationToken);
         Guid ownerId = Guid.CreateVersion7();
@@ -62,7 +63,7 @@ public sealed class SeedTests(InfrastructureFixture infrastructure) : IClassFixt
     public async Task SecondRunChangesNothing()
     {
         await using ApiFactory factory = await CreateFactory();
-        using IServiceScope scope = factory.Services.CreateScope();
+        using IServiceScope scope = factory.Services.CreateSystemScope();
         AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         SeedRunner runner = scope.ServiceProvider.GetRequiredService<SeedRunner>();
         SeedOptions options = new("owner", "Owner", _password, _sampleFile, "Development", null);
@@ -81,7 +82,7 @@ public sealed class SeedTests(InfrastructureFixture infrastructure) : IClassFixt
     public async Task MissingOwnerPasswordIsRejectedWithoutWrites(string? password)
     {
         await using ApiFactory factory = await CreateFactory();
-        using IServiceScope scope = factory.Services.CreateScope();
+        using IServiceScope scope = factory.Services.CreateSystemScope();
         SeedRunner runner = scope.ServiceProvider.GetRequiredService<SeedRunner>();
         await Assert.ThrowsAsync<SeedConfigurationException>(() => runner.RunAsync(new("owner", "Owner", password, _sampleFile, "Development", null), TestContext.Current.CancellationToken));
         await AssertNoWrites(factory);
@@ -91,7 +92,7 @@ public sealed class SeedTests(InfrastructureFixture infrastructure) : IClassFixt
     public async Task SampleFileSkippedOutsideDevelopment()
     {
         await using ApiFactory factory = await CreateFactory();
-        using IServiceScope scope = factory.Services.CreateScope();
+        using IServiceScope scope = factory.Services.CreateSystemScope();
         SeedResult result = await scope.ServiceProvider.GetRequiredService<SeedRunner>().RunAsync(new("owner", "Owner", _password, _sampleFile, "Production", null), TestContext.Current.CancellationToken);
         Assert.Equal(0, result.Inserted);
         Assert.Equal(1, await scope.ServiceProvider.GetRequiredService<AppDbContext>().Owners.CountAsync(TestContext.Current.CancellationToken));
@@ -106,7 +107,7 @@ public sealed class SeedTests(InfrastructureFixture infrastructure) : IClassFixt
         try
         {
             await using ApiFactory factory = await CreateFactory();
-            using IServiceScope scope = factory.Services.CreateScope();
+            using IServiceScope scope = factory.Services.CreateSystemScope();
             SeedResult result = await scope.ServiceProvider.GetRequiredService<SeedRunner>().RunAsync(new("owner", "Owner", _password, path, "Production", null), TestContext.Current.CancellationToken);
             Assert.Equal(3, result.Inserted);
         }
@@ -120,7 +121,7 @@ public sealed class SeedTests(InfrastructureFixture infrastructure) : IClassFixt
         try
         {
             await using ApiFactory factory = await CreateFactory();
-            using IServiceScope scope = factory.Services.CreateScope();
+            using IServiceScope scope = factory.Services.CreateSystemScope();
             AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             SeedRunner runner = scope.ServiceProvider.GetRequiredService<SeedRunner>();
             SeedOptions options = new("owner", "Owner", _password, path, "Development", "test-manager-password");
@@ -147,7 +148,7 @@ public sealed class SeedTests(InfrastructureFixture infrastructure) : IClassFixt
         try
         {
             await using ApiFactory factory = await CreateFactory();
-            using IServiceScope scope = factory.Services.CreateScope();
+            using IServiceScope scope = factory.Services.CreateSystemScope();
             await Assert.ThrowsAsync<SeedConfigurationException>(() => scope.ServiceProvider.GetRequiredService<SeedRunner>().RunAsync(new("owner", "Owner", _password, path, "Development", null), TestContext.Current.CancellationToken));
             await AssertNoWrites(factory);
         }
@@ -161,7 +162,7 @@ public sealed class SeedTests(InfrastructureFixture infrastructure) : IClassFixt
         try
         {
             await using ApiFactory factory = await CreateFactory();
-            using IServiceScope scope = factory.Services.CreateScope();
+            using IServiceScope scope = factory.Services.CreateSystemScope();
             await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.GetRequiredService<SeedRunner>().RunAsync(new("owner", "Owner", _password, path, "Development", null), TestContext.Current.CancellationToken));
             await AssertNoWrites(factory);
         }
@@ -172,7 +173,7 @@ public sealed class SeedTests(InfrastructureFixture infrastructure) : IClassFixt
     public async Task CliReturnsConfigurationExitCodeWithoutPrintingPassword()
     {
         await using ApiFactory factory = await CreateFactory();
-        using IServiceScope scope = factory.Services.CreateScope();
+        using IServiceScope scope = factory.Services.CreateSystemScope();
         string connectionString = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.GetConnectionString()!;
         ProcessStartInfo start = new("dotnet") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = RepositoryPaths.Root };
         foreach (string argument in new[] { typeof(Program).Assembly.Location, "db", "seed", "--file", _sampleFile }) start.ArgumentList.Add(argument);
@@ -191,14 +192,14 @@ public sealed class SeedTests(InfrastructureFixture infrastructure) : IClassFixt
     private async Task<ApiFactory> CreateFactory()
     {
         ApiFactory factory = new(new Dictionary<string, string?> { ["ConnectionStrings:Default"] = await infrastructure.CreateDatabaseAsync() });
-        using IServiceScope scope = factory.Services.CreateScope();
+        using IServiceScope scope = factory.Services.CreateSystemScope();
         await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync(TestContext.Current.CancellationToken);
         return factory;
     }
 
     private static async Task AssertNoWrites(ApiFactory factory)
     {
-        using IServiceScope scope = factory.Services.CreateScope();
+        using IServiceScope scope = factory.Services.CreateSystemScope();
         AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         Assert.Equal(0, await db.Owners.CountAsync(TestContext.Current.CancellationToken));
         Assert.Equal(0, await db.Users.CountAsync(TestContext.Current.CancellationToken));

@@ -10,6 +10,7 @@ using Bepthaymao.Domain.Branches;
 using Microsoft.IdentityModel.JsonWebTokens;
 using System.Security.Cryptography;
 using System.Text;
+using Bepthaymao.Api.Security;
 
 namespace Bepthaymao.Integration.Tests.Auth;
 
@@ -22,7 +23,7 @@ public sealed class LoginTests(InfrastructureFixture infrastructure) : IClassFix
         {
             ["ConnectionStrings:Default"] = await infrastructure.CreateDatabaseAsync(),
         });
-        using IServiceScope scope = factory.Services.CreateScope();
+        using IServiceScope scope = factory.Services.CreateSystemScope();
         await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync(TestContext.Current.CancellationToken);
         await AuthTestData.CreateUserAsync(scope.ServiceProvider, "owner-test", "test-password-only", UserRole.Owner, Guid.CreateVersion7());
         using HttpClient client = factory.CreateClient();
@@ -47,7 +48,7 @@ public sealed class LoginTests(InfrastructureFixture infrastructure) : IClassFix
     public async Task AccessTokenCarriesScopeClaims(UserRole role)
     {
         await using ApiFactory factory = CreateFactory(await infrastructure.CreateDatabaseAsync());
-        using IServiceScope scope = factory.Services.CreateScope();
+        using IServiceScope scope = factory.Services.CreateSystemScope();
         AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.MigrateAsync(TestContext.Current.CancellationToken);
         Guid scopeId = Guid.CreateVersion7();
@@ -78,7 +79,7 @@ public sealed class LoginTests(InfrastructureFixture infrastructure) : IClassFix
     public async Task RefreshTokenIsStoredHashed()
     {
         await using ApiFactory factory = CreateFactory(await infrastructure.CreateDatabaseAsync());
-        using IServiceScope scope = factory.Services.CreateScope();
+        using IServiceScope scope = factory.Services.CreateSystemScope();
         AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.MigrateAsync(TestContext.Current.CancellationToken);
         var user = await AuthTestData.CreateUserAsync(scope.ServiceProvider, "hash-test", "test-password-only", UserRole.Owner, Guid.CreateVersion7());
@@ -107,7 +108,7 @@ public sealed class LoginTests(InfrastructureFixture infrastructure) : IClassFix
     public async Task WrongPasswordAndUnknownUserReturnIdenticalProblem()
     {
         await using ApiFactory factory = CreateFactory(await infrastructure.CreateDatabaseAsync());
-        using IServiceScope scope = factory.Services.CreateScope();
+        using IServiceScope scope = factory.Services.CreateSystemScope();
         await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync(TestContext.Current.CancellationToken);
         await AuthTestData.CreateUserAsync(scope.ServiceProvider, "known-user", "test-password-only", UserRole.Owner, Guid.CreateVersion7());
         using HttpClient client = factory.CreateClient();
@@ -146,7 +147,7 @@ public sealed class LoginTests(InfrastructureFixture infrastructure) : IClassFix
     public async Task NoLockoutAfterRepeatedFailures()
     {
         await using ApiFactory factory = CreateFactory(await infrastructure.CreateDatabaseAsync());
-        using IServiceScope scope = factory.Services.CreateScope();
+        using IServiceScope scope = factory.Services.CreateSystemScope();
         await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync(TestContext.Current.CancellationToken);
         await AuthTestData.CreateUserAsync(scope.ServiceProvider, "no-lockout", "test-password-only", UserRole.Owner, Guid.CreateVersion7());
         using HttpClient client = factory.CreateClient();

@@ -8,6 +8,7 @@ using Bepthaymao.Domain.Owners;
 using Bepthaymao.Integration.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Bepthaymao.Api.Security;
 
 namespace Bepthaymao.Integration.Tests.Branches;
 
@@ -18,7 +19,7 @@ public sealed class PublicBranchesEndpointTests(InfrastructureFixture infrastruc
     {
         string connectionString = await infrastructure.CreateDatabaseAsync();
         await using ApiFactory factory = CreateFactory(connectionString);
-        using IServiceScope scope = factory.Services.CreateScope();
+        using IServiceScope scope = factory.Services.CreateSystemScope();
         AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.MigrateAsync(TestContext.Current.CancellationToken);
         SeedRunner runner = scope.ServiceProvider.GetRequiredService<SeedRunner>();
@@ -41,7 +42,7 @@ public sealed class PublicBranchesEndpointTests(InfrastructureFixture infrastruc
     public async Task DatabaseEnforcesHoursAndFailedSeedDoesNotWritePartialChanges()
     {
         await using ApiFactory factory = CreateFactory(await infrastructure.CreateDatabaseAsync());
-        using IServiceScope scope = factory.Services.CreateScope();
+        using IServiceScope scope = factory.Services.CreateSystemScope();
         AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.MigrateAsync(TestContext.Current.CancellationToken);
         Guid id = Guid.CreateVersion7();
@@ -53,7 +54,7 @@ public sealed class PublicBranchesEndpointTests(InfrastructureFixture infrastruc
         var handler = scope.ServiceProvider.GetRequiredService<ICommandHandler<UpsertBranchesCommand, UpsertBranchesResult>>();
         BranchUpsertItem valid = new(id, "Mẫu", "Mẫu", "0901234567", "06:00", "21:30", true);
         await Assert.ThrowsAsync<Domain.Common.DomainRuleException>(() => handler.Handle(new(ownerId, [valid, valid with { Id = Guid.CreateVersion7(), Phone = "bad" }]), TestContext.Current.CancellationToken));
-        using IServiceScope freshScope = factory.Services.CreateScope();
+        using IServiceScope freshScope = factory.Services.CreateSystemScope();
         Assert.Equal(0, await freshScope.ServiceProvider.GetRequiredService<AppDbContext>().Branches.CountAsync(TestContext.Current.CancellationToken));
     }
 
@@ -61,7 +62,7 @@ public sealed class PublicBranchesEndpointTests(InfrastructureFixture infrastruc
     public async Task EmptyResponseAndRateLimitUseRealEndpoint()
     {
         await using ApiFactory factory = CreateFactory(await infrastructure.CreateDatabaseAsync());
-        using IServiceScope scope = factory.Services.CreateScope();
+        using IServiceScope scope = factory.Services.CreateSystemScope();
         await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync(TestContext.Current.CancellationToken);
         using HttpClient client = factory.CreateClient();
         Assert.Equal("[]", await client.GetStringAsync("/api/v1/branches", TestContext.Current.CancellationToken));
