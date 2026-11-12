@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Bepthaymao.Api.Security;
+using Bepthaymao.Application.Abstractions.Errors;
 using Bepthaymao.Application.Abstractions.Messaging;
 using Bepthaymao.Application.Branches.Owner;
 using Bepthaymao.Application.Branches.Owner.CreateOwnerBranch;
@@ -58,6 +59,8 @@ public static class OwnerBranchesEndpoints
         group.MapPost("/", async Task<Created<BranchResponse>> (CreateBranchRequest request,
             [FromServices] ICommandHandler<CreateOwnerBranchCommand, BranchResponse> handler, CancellationToken cancellationToken) =>
         {
+            if (request.Branch is null || request.Manager is null)
+                throw new ValidationException(new Dictionary<string, string[]> { [request.Branch is null ? "branch" : "manager"] = ["Trường này là bắt buộc."] });
             BranchResponse response = await handler.Handle(new(request.Branch.ToData(), new(request.Manager.Identifier, request.Manager.Password)), cancellationToken);
             return TypedResults.Created($"/api/v1/owner/branches/{response.Id}", response);
         }).WithName("createOwnerBranch").WithSummary("Tạo cơ sở kèm tài khoản quản lý")
