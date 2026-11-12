@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Bepthaymao.Domain.Branches;
 using Bepthaymao.Integration.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -84,6 +86,57 @@ public sealed class ManagerSettingsTests(InfrastructureFixture infrastructure) :
         Branch stored = await world.WithDbAsync(db => db.Branches.AsNoTracking().SingleAsync(value => value.Id == world.BranchA1, TestContext.Current.CancellationToken));
         Assert.Equal(("0123456789", "VCB", "sepay-Cơ sở A1"), (stored.BankAccountNo, stored.BankCode, stored.SepayAccountRef));
         Assert.Equal(("Cơ sở A1", 10.77, 106.7, true), (stored.Name, stored.Lat, stored.Lng, stored.IsActive));
+    }
+
+    [Theory]
+    [InlineData("bankAccountNo", "\"999888777\"")]
+    [InlineData("bankCode", "\"ACB\"")]
+    [InlineData("sepayAccountRef", "\"sepay-khac\"")]
+    [InlineData("name", "\"Tên do quản lý tự đặt\"")]
+    [InlineData("isActive", "false")]
+    [InlineData("lat", "11.5")]
+    public async Task OwnerOnlyFieldsRejected(string field, string json)
+    {
+        await using AuthWorld world = await AuthWorld.CreateAsync(infrastructure);
+        await GiveBranchBankAccountAsync(world, world.BranchA1, "Cơ sở A1");
+        using HttpClient manager = await world.ClientForAsync(AuthSubject.ManagerA1);
+        JsonObject body = JsonSerializer.SerializeToNode(ValidSettings())!.AsObject();
+        body[field] = JsonNode.Parse(json);
+        using StringContent content = new(body.ToJsonString(), Encoding.UTF8, "application/json");
+
+        using HttpResponseMessage response = await manager.PutAsync(_settingsPath, content, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+
+        Branch stored = await world.WithDbAsync(db => db.Branches.AsNoTracking().SingleAsync(value => value.Id == world.BranchA1, TestContext.Current.CancellationToken));
+        Assert.Equal(("Cơ sở A1", true, 10.77, "0123456789", "VCB", "sepay-Cơ sở A1"),
+            (stored.Name, stored.IsActive, stored.Lat, stored.BankAccountNo, stored.BankCode, stored.SepayAccountRef));
+        Assert.Equal(("0901234567", 10), (stored.Phone, stored.AbandonedThresholdMinutes));
+    }
+
+    [Theory]
+    [InlineData("openTime", "\"20:00\"", "openTime")]
+    [InlineData("closeTime", "\"06:00\"", "openTime")]
+    [InlineData("abandonedThresholdMinutes", "0", "abandonedThresholdMinutes")]
+    [InlineData("zaloRecipientIds", "[\"a\",\"a\"]", "zaloRecipientIds")]
+    [InlineData("phone", "\"12345\"", "phone")]
+    public async Task InvalidSettingsReturnCamelCaseKeys(string field, string json, string expectedKey)
+    {
+        await using AuthWorld world = await AuthWorld.CreateAsync(infrastructure);
+        using HttpClient manager = await world.ClientForAsync(AuthSubject.ManagerA1);
+        JsonObject body = JsonSerializer.SerializeToNode(ValidSettings())!.AsObject();
+        body[field] = JsonNode.Parse(json);
+        using StringContent content = new(body.ToJsonString(), Encoding.UTF8, "application/json");
+
+        using HttpResponseMessage response = await manager.PutAsync(_settingsPath, content, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using JsonDocument problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.True(problem.RootElement.GetProperty("errors").TryGetProperty(expectedKey, out _), $"Thiếu khóa lỗi {expectedKey}.");
+        Assert.Equal(("06:00", 10), await world.WithDbAsync(async db =>
+        {
+            Branch stored = await db.Branches.AsNoTracking().SingleAsync(value => value.Id == world.BranchA1, TestContext.Current.CancellationToken);
+            return (stored.OpenTime.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture), stored.AbandonedThresholdMinutes);
+        }));
     }
 
     private static void AssertUpdated(JsonElement view)
