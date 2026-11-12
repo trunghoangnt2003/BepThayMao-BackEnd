@@ -19,6 +19,26 @@ public sealed class OpenApiDocumentTests
     }
 
     [Fact]
+    public void BearerSchemeIsDeclaredAndOnlyProtectedOperationsRequireIt()
+    {
+        using JsonDocument document = JsonDocument.Parse(ReadCommittedDocument());
+        Assert.True(document.RootElement.GetProperty("components").TryGetProperty("securitySchemes", out JsonElement schemes), "Thiếu components.securitySchemes.");
+        Assert.True(schemes.TryGetProperty("bearerAuth", out JsonElement scheme), "Thiếu security scheme bearerAuth.");
+        Assert.Equal("http", scheme.GetProperty("type").GetString());
+        Assert.Equal("bearer", scheme.GetProperty("scheme").GetString());
+        Assert.Equal("JWT", scheme.GetProperty("bearerFormat").GetString());
+        Dictionary<string, bool> secured = [];
+        foreach (JsonProperty path in document.RootElement.GetProperty("paths").EnumerateObject())
+            foreach (JsonProperty operation in path.Value.EnumerateObject())
+                secured[operation.Value.GetProperty("operationId").GetString()!] = operation.Value.TryGetProperty("security", out JsonElement security)
+                    && security.EnumerateArray().Any(requirement => requirement.TryGetProperty("bearerAuth", out _));
+        foreach (string name in new[] { "createOwnerBranch", "listOwnerBranches", "getOwnerBranch" })
+            Assert.True(secured[name], $"{name} phải yêu cầu bearerAuth.");
+        foreach (string name in new[] { "login", "refreshToken", "logout", "listPublicBranches" })
+            Assert.False(secured[name], $"{name} không được yêu cầu bearerAuth.");
+    }
+
+    [Fact]
     public async Task RuntimeDocumentMatchesCommittedFile()
     {
         await using ApiFactory factory = new();
