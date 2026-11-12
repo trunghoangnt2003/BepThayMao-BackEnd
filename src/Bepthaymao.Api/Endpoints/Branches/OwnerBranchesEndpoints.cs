@@ -3,6 +3,8 @@ using Bepthaymao.Api.Security;
 using Bepthaymao.Application.Abstractions.Messaging;
 using Bepthaymao.Application.Branches.Owner;
 using Bepthaymao.Application.Branches.Owner.CreateOwnerBranch;
+using Bepthaymao.Application.Branches.Owner.GetOwnerBranch;
+using Bepthaymao.Application.Branches.Owner.ListOwnerBranches;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 
@@ -40,6 +42,19 @@ public static class OwnerBranchesEndpoints
     public static RouteGroupBuilder MapOwnerBranchesEndpoints(this RouteGroupBuilder v1)
     {
         RouteGroupBuilder group = v1.MapGroup("/owner/branches").WithTags("Owner").RequireAuthorization(PolicyNames.OwnerOnly);
+        group.MapGet("/", async Task<Ok<IReadOnlyList<BranchResponse>>> (
+            [FromServices] IQueryHandler<ListOwnerBranchesQuery, IReadOnlyList<BranchResponse>> handler, CancellationToken cancellationToken) =>
+            TypedResults.Ok(await handler.Handle(new(), cancellationToken)))
+            .WithName("listOwnerBranches").WithSummary("Danh sách cơ sở của chủ sở hữu")
+            .WithDescription("Chỉ trả cơ sở của Chủ sở hữu đang đăng nhập; Quản lý gọi /owner/* nhận 403.")
+            .ProducesProblem(StatusCodes.Status401Unauthorized).ProducesProblem(StatusCodes.Status403Forbidden);
+        group.MapGet("/{branchId:guid}", async Task<Ok<BranchResponse>> (Guid branchId,
+            [FromServices] IQueryHandler<GetOwnerBranchQuery, BranchResponse> handler, CancellationToken cancellationToken) =>
+            TypedResults.Ok(await handler.Handle(new(branchId), cancellationToken)))
+            .WithName("getOwnerBranch").WithSummary("Xem thông tin một cơ sở của chủ sở hữu")
+            .WithDescription("Trả 404 khi cơ sở không tồn tại hoặc thuộc Chủ sở hữu khác.")
+            .ProducesProblem(StatusCodes.Status401Unauthorized).ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound);
         group.MapPost("/", async Task<Created<BranchResponse>> (CreateBranchRequest request,
             [FromServices] ICommandHandler<CreateOwnerBranchCommand, BranchResponse> handler, CancellationToken cancellationToken) =>
         {

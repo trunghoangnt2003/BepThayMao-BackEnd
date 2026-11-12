@@ -44,6 +44,14 @@ internal sealed class ApiExceptionHandler(
                 Title = "Conflict.",
             };
         }
+        else if (exception is NotFoundException)
+        {
+            problemDetails = new ProblemDetails
+            {
+                Status = StatusCodes.Status404NotFound,
+                Title = "Not found.",
+            };
+        }
         else if (exception is ForbiddenException)
         {
             problemDetails = new ProblemDetails

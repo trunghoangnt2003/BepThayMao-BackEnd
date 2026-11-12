@@ -1,6 +1,7 @@
 using Bepthaymao.Application.Abstractions.Persistence;
 using Bepthaymao.Application.Branches;
 using Bepthaymao.Application.Branches.ListPublicBranches;
+using Bepthaymao.Application.Branches.Owner;
 using Bepthaymao.Infrastructure.Persistence;
 using Bepthaymao.Infrastructure.Persistence.Branches;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +22,7 @@ public static class DependencyInjection
             .UseSnakeCaseNamingConvention());
         services.AddScoped<IPublicBranchReader, PublicBranchReader>();
         services.AddScoped<IBranchRepository, BranchRepository>();
+        services.AddScoped<IOwnerBranchReader, OwnerBranchReader>();
         services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<AppDbContext>());
         services.AddSingleton(TimeProvider.System);
         services.AddIdentityCore<AppUser>(options =>
