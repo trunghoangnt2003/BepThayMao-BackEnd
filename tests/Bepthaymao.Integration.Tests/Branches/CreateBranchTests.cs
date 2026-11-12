@@ -69,4 +69,28 @@ public sealed class CreateBranchTests(InfrastructureFixture infrastructure) : IC
         Assert.Equal(branchesBefore, await world.WithDbAsync(db => db.Branches.CountAsync(TestContext.Current.CancellationToken)));
         Assert.Equal(usersBefore, await world.WithDbAsync(db => db.Users.CountAsync(TestContext.Current.CancellationToken)));
     }
+
+    [Fact]
+    public async Task RoleAssignmentFailureLeavesNoBranchOrUser()
+    {
+        await using AuthWorld world = await AuthWorld.CreateAsync(infrastructure);
+        using HttpClient owner = await world.ClientForAsync(AuthSubject.Owner1);
+        await world.WithDbAsync(async db =>
+        {
+            await db.Database.ExecuteSqlAsync($"DELETE FROM user_roles WHERE role_id IN (SELECT id FROM roles WHERE normalized_name = 'BRANCHMANAGER')", TestContext.Current.CancellationToken);
+            return await db.Database.ExecuteSqlAsync($"DELETE FROM roles WHERE normalized_name = 'BRANCHMANAGER'", TestContext.Current.CancellationToken);
+        });
+        int branchesBefore = await world.WithDbAsync(db => db.Branches.CountAsync(TestContext.Current.CancellationToken));
+        int usersBefore = await world.WithDbAsync(db => db.Users.CountAsync(TestContext.Current.CancellationToken));
+        int rolesBefore = await world.WithDbAsync(db => db.UserRoles.CountAsync(TestContext.Current.CancellationToken));
+        using HttpResponseMessage failed = await owner.PostAsJsonAsync("/api/v1/owner/branches", ValidBody("quanly-loi-vai-tro"), TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.InternalServerError, failed.StatusCode);
+        using JsonDocument problem = JsonDocument.Parse(await failed.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.True(problem.RootElement.TryGetProperty("correlationId", out _));
+        Assert.False(problem.RootElement.TryGetProperty("detail", out _));
+        Assert.Equal(branchesBefore, await world.WithDbAsync(db => db.Branches.CountAsync(TestContext.Current.CancellationToken)));
+        Assert.Equal(usersBefore, await world.WithDbAsync(db => db.Users.CountAsync(TestContext.Current.CancellationToken)));
+        Assert.Equal(rolesBefore, await world.WithDbAsync(db => db.UserRoles.CountAsync(TestContext.Current.CancellationToken)));
+        Assert.False(await world.WithDbAsync(db => db.Users.AnyAsync(user => user.UserName == "quanly-loi-vai-tro", TestContext.Current.CancellationToken)));
+    }
 }
