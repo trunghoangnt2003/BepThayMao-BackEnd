@@ -6,6 +6,7 @@ using Bepthaymao.Application.Branches.Owner;
 using Bepthaymao.Application.Branches.Owner.CreateOwnerBranch;
 using Bepthaymao.Application.Branches.Owner.GetOwnerBranch;
 using Bepthaymao.Application.Branches.Owner.ListOwnerBranches;
+using Bepthaymao.Application.Branches.Owner.UpdateOwnerBranch;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 
@@ -56,6 +57,13 @@ public static class OwnerBranchesEndpoints
             .WithDescription("Trả 404 khi cơ sở không tồn tại hoặc thuộc Chủ sở hữu khác.")
             .ProducesProblem(StatusCodes.Status401Unauthorized).ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound);
+        group.MapPut("/{branchId:guid}", async Task<Ok<BranchResponse>> (Guid branchId, BranchOwnerSettingsRequest request,
+            [FromServices] ICommandHandler<UpdateOwnerBranchCommand, BranchResponse> handler, CancellationToken cancellationToken) =>
+            TypedResults.Ok(await handler.Handle(new(branchId, request.ToData()), cancellationToken)))
+            .WithName("updateOwnerBranch").WithSummary("Sửa thông tin cơ sở, bật hoặc tắt nhận đơn (isActive)")
+            .WithDescription("Chủ sở hữu sửa mọi trường và bật hoặc tắt nhận đơn; tắt cơ sở không xóa cơ sở hay tài khoản quản lý. Trả 404 khi cơ sở thuộc Chủ sở hữu khác.")
+            .ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden).ProducesProblem(StatusCodes.Status404NotFound);
         group.MapPost("/", async Task<Created<BranchResponse>> (CreateBranchRequest request,
             [FromServices] ICommandHandler<CreateOwnerBranchCommand, BranchResponse> handler, CancellationToken cancellationToken) =>
         {

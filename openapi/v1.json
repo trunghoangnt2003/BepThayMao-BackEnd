@@ -381,6 +381,93 @@
             "bearerAuth": [ ]
           }
         ]
+      },
+      "put": {
+        "tags": [
+          "Owner"
+        ],
+        "summary": "Sửa thông tin cơ sở, bật hoặc tắt nhận đơn (isActive)",
+        "description": "Chủ sở hữu sửa mọi trường và bật hoặc tắt nhận đơn; tắt cơ sở không xóa cơ sở hay tài khoản quản lý. Trả 404 khi cơ sở thuộc Chủ sở hữu khác.",
+        "operationId": "updateOwnerBranch",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BranchOwnerSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BranchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ]
       }
     },
     "/api/v1/manager/branch/settings": {
