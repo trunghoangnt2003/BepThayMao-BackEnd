@@ -33,6 +33,17 @@ internal sealed class ApiExceptionHandler(
                 Title = "Authentication failed.",
             };
         }
+        else if (exception is ConflictException conflict)
+        {
+            problemDetails = new HttpValidationProblemDetails(new Dictionary<string, string[]>
+            {
+                [conflict.Field] = [conflict.Message],
+            })
+            {
+                Status = StatusCodes.Status409Conflict,
+                Title = "Conflict.",
+            };
+        }
         else if (exception is ForbiddenException)
         {
             problemDetails = new ProblemDetails
