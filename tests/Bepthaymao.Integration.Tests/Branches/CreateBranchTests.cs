@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Bepthaymao.Integration.Tests.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
 
 namespace Bepthaymao.Integration.Tests.Branches;
@@ -50,5 +51,22 @@ public sealed class CreateBranchTests(InfrastructureFixture infrastructure) : IC
         Assert.Equal("BranchManager", tokens.RootElement.GetProperty("role").GetString());
         JsonWebToken jwt = new(tokens.RootElement.GetProperty("accessToken").GetString());
         Assert.Equal(branchId.ToString(), jwt.GetClaim("branch_id").Value);
+    }
+
+    [Fact]
+    public async Task DuplicateManagerIdentifierReturns409AndNoBranch()
+    {
+        await using AuthWorld world = await AuthWorld.CreateAsync(infrastructure);
+        using HttpClient owner = await world.ClientForAsync(AuthSubject.Owner1);
+        int branchesBefore = await world.WithDbAsync(db => db.Branches.CountAsync(TestContext.Current.CancellationToken));
+        int usersBefore = await world.WithDbAsync(db => db.Users.CountAsync(TestContext.Current.CancellationToken));
+        using HttpResponseMessage duplicate = await owner.PostAsJsonAsync("/api/v1/owner/branches",
+            ValidBody(AuthWorld.IdentifierOf(AuthSubject.ManagerA1)), TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
+        Assert.Equal("application/problem+json", duplicate.Content.Headers.ContentType?.MediaType);
+        using JsonDocument problem = JsonDocument.Parse(await duplicate.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.True(problem.RootElement.GetProperty("errors").TryGetProperty("manager.identifier", out _));
+        Assert.Equal(branchesBefore, await world.WithDbAsync(db => db.Branches.CountAsync(TestContext.Current.CancellationToken)));
+        Assert.Equal(usersBefore, await world.WithDbAsync(db => db.Users.CountAsync(TestContext.Current.CancellationToken)));
     }
 }
