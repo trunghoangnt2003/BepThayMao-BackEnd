@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Asp.Versioning;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.OpenApi;
 
@@ -7,6 +8,8 @@ namespace Bepthaymao.Api.OpenApi;
 
 internal static class OpenApiSetup
 {
+    private const string _bearerScheme = "bearerAuth";
+
     public static IServiceCollection AddApiOpenApi(this IServiceCollection services)
     {
         services.ConfigureHttpJsonOptions(options =>
@@ -39,27 +42,28 @@ internal static class OpenApiSetup
                 };
                 document.Servers = [new OpenApiServer { Url = "/" }];
                 document.Components ??= new OpenApiComponents();
-                document.Components.Schemas ??= new Dictionary<string, IOpenApiSchema>(StringComparer.Ordinal);
-                if (!document.Components.Schemas.ContainsKey("ProblemDetails"))
+                document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>(StringComparer.Ordinal);
+                document.Components.SecuritySchemes[_bearerScheme] = new OpenApiSecurityScheme
                 {
-                    // The versioning adapter does not expose a keyed schema service for an empty document.
-                    OpenApiSchema problem = new()
+                    Type = SecuritySchemeType.Http,
+                    Scheme = "bearer",
+                    BearerFormat = "JWT",
+                    Description = "JWT access token lấy từ /api/v1/auth/login.",
+                };
+                return Task.CompletedTask;
+            });
+            options.Document.AddOperationTransformer((operation, context, _) =>
+            {
+                IList<object> metadata = context.Description.ActionDescriptor.EndpointMetadata;
+                if (metadata.OfType<IAuthorizeData>().Any() && !metadata.OfType<IAllowAnonymous>().Any())
+                {
+                    operation.Security ??= [];
+                    operation.Security.Add(new OpenApiSecurityRequirement
                     {
-                        Type = JsonSchemaType.Object,
-                        Properties = new Dictionary<string, IOpenApiSchema>(StringComparer.Ordinal)
-                        {
-                            ["type"] = new OpenApiSchema { Type = JsonSchemaType.String },
-                            ["title"] = new OpenApiSchema { Type = JsonSchemaType.String },
-                            ["status"] = new OpenApiSchema { Type = JsonSchemaType.Integer },
-                            ["detail"] = new OpenApiSchema { Type = JsonSchemaType.String },
-                            ["instance"] = new OpenApiSchema { Type = JsonSchemaType.String },
-                            ["correlationId"] = new OpenApiSchema { Type = JsonSchemaType.String },
-                            ["traceId"] = new OpenApiSchema { Type = JsonSchemaType.String },
-                        },
-                        Required = new HashSet<string>(["title", "status", "correlationId"], StringComparer.Ordinal),
-                    };
-                    document.Components.Schemas.TryAdd("ProblemDetails", problem);
+                        [new OpenApiSecuritySchemeReference(_bearerScheme, context.Document)] = [],
+                    });
                 }
+
                 return Task.CompletedTask;
             });
             options.Document.AddSchemaTransformer((schema, context, _) =>
@@ -72,16 +76,6 @@ internal static class OpenApiSetup
                     schema.Properties["traceId"] = new OpenApiSchema { Type = JsonSchemaType.String };
                     schema.Required ??= new HashSet<string>(StringComparer.Ordinal);
                     schema.Required.Add("correlationId");
-                    schema.Required.Add("title");
-                    schema.Required.Add("status");
-                    if (schema.Properties.TryGetValue("title", out IOpenApiSchema? title) && title is OpenApiSchema titleSchema)
-                    {
-                        titleSchema.Type = JsonSchemaType.String;
-                    }
-                    if (schema.Properties.TryGetValue("status", out IOpenApiSchema? status) && status is OpenApiSchema statusSchema)
-                    {
-                        statusSchema.Type = JsonSchemaType.Integer;
-                    }
                 }
 
                 return Task.CompletedTask;

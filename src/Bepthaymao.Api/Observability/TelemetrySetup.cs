@@ -6,31 +6,25 @@ namespace Bepthaymao.Api.Observability;
 
 internal static class TelemetrySetup
 {
-    public const string OtlpEndpointVariable = "OTEL_EXPORTER_OTLP_ENDPOINT";
-
     public static IServiceCollection AddApiTelemetry(this IServiceCollection services, IConfiguration configuration)
     {
-        // The OTLP exporter reads OTEL_EXPORTER_OTLP_ENDPOINT itself; attach it only when a collector is configured.
-        bool exportOtlp = !string.IsNullOrWhiteSpace(configuration[OtlpEndpointVariable]);
+        var endpoint = configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
         services.AddOpenTelemetry()
             .ConfigureResource(resource => resource.AddService("bepthaymao-api"))
             .WithTracing(tracing =>
             {
-                tracing.AddAspNetCoreInstrumentation(options =>
-                        options.Filter = context => !context.Request.Path.StartsWithSegments("/health"))
-                    .AddHttpClientInstrumentation();
-                if (exportOtlp)
-                {
-                    tracing.AddOtlpExporter();
-                }
+                tracing.AddAspNetCoreInstrumentation(options => options.Filter = context =>
+                    !context.Request.Path.StartsWithSegments("/health"));
+                tracing.AddHttpClientInstrumentation();
+                if (Uri.TryCreate(endpoint, UriKind.Absolute, out var uri))
+                    tracing.AddOtlpExporter(options => options.Endpoint = uri);
             })
             .WithMetrics(metrics =>
             {
-                metrics.AddAspNetCoreInstrumentation().AddHttpClientInstrumentation().AddRuntimeInstrumentation();
-                if (exportOtlp)
-                {
-                    metrics.AddOtlpExporter();
-                }
+                metrics.AddAspNetCoreInstrumentation();
+                metrics.AddHttpClientInstrumentation();
+                if (Uri.TryCreate(endpoint, UriKind.Absolute, out var uri))
+                    metrics.AddOtlpExporter(options => options.Endpoint = uri);
             });
         return services;
     }

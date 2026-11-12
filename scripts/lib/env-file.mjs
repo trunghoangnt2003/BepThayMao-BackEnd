@@ -1,56 +1,42 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
-export const SECRET_KEYS = ['POSTGRES_PASSWORD', 'REDIS_PASSWORD', 'RABBITMQ_DEFAULT_PASS'];
+const secrets = new Map([['POSTGRES_PASSWORD', 24], ['REDIS_PASSWORD', 24], ['RABBITMQ_DEFAULT_PASS', 24], ['Jwt__SigningKey', 48]]);
 
-/** Parses KEY=VALUE lines; blank lines and # comments are ignored, the first '=' splits. */
-export function parseEnv(text) {
-  const values = {};
-  for (const rawLine of text.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith('#')) continue;
-    const separator = line.indexOf('=');
-    if (separator <= 0) continue;
-    values[line.slice(0, separator).trim()] = line.slice(separator + 1).trim();
-  }
-  return values;
+export function readEnvFile(path) {
+  if (!existsSync(path)) return {};
+  return Object.fromEntries(readFileSync(path, 'utf8').split(/\r?\n/)
+    .map(line => line.match(/^\s*([^#=\s]+)\s*=\s*(.*)\s*$/))
+    .filter(Boolean).map(([, key, value]) => [key, value]));
 }
 
-/** Fills empty secret keys in-place in the env text, keeping comments and order. */
-export function fillSecrets(text, generate = () => randomBytes(24).toString('base64url')) {
-  return text.replace(/^([A-Z_]+)=[ \t]*$/gm, (line, key) => (SECRET_KEYS.includes(key) ? `${key}=${generate()}` : line));
-}
-
-/** Creates envPath from examplePath when missing and generates any empty secret. Never prints values. */
 export function ensureEnvFile(examplePath, envPath) {
-  const created = !existsSync(envPath);
-  const original = created ? readFileSync(examplePath, 'utf8') : readFileSync(envPath, 'utf8');
-  const filled = fillSecrets(original);
-  if (created || filled !== original) writeFileSync(envPath, filled, { encoding: 'utf8', mode: 0o600 });
-  return { created, values: parseEnv(filled) };
+  if (!existsSync(envPath)) writeFileSync(envPath, readFileSync(examplePath, 'utf8'));
+  const env = readEnvFile(envPath);
+  for (const [key, bytes] of secrets) if (!env[key]) env[key] = randomBytes(bytes).toString('base64url');
+  const written = new Set();
+  const lines = readFileSync(envPath, 'utf8').split(/\r?\n/).map(line => {
+    const match = line.match(/^\s*([^#=\s]+)\s*=\s*(.*)\s*$/);
+    if (!match || !secrets.has(match[1])) return line;
+    written.add(match[1]);
+    return `${match[1]}=${env[match[1]]}`;
+  });
+  for (const key of secrets.keys()) if (!written.has(key)) lines.push(`${key}=${env[key]}`);
+  writeFileSync(envPath, lines.join('\n'));
+  return env;
 }
 
-/**
- * Environment for the API/CLI. Default: process on the host, compose services on 127.0.0.1 and published ports.
- * With inCompose: container on the compose network, services by name on their internal ports.
- */
-export function buildApiEnv(env, { inCompose = false } = {}) {
-  const at = (service, port, internal) => (inCompose ? `${service}:${internal}` : `127.0.0.1:${port || internal}`);
-  const required = (key) => {
-    if (!env[key]) throw new Error(`Thiếu ${key} trong deploy/.env; chạy npm run dev:up.`);
-    return env[key];
-  };
-  const result = {
+export function buildApiEnv(env) {
+  return {
+    ...process.env,
     ASPNETCORE_ENVIRONMENT: 'Development',
-    ConnectionStrings__Default: `Host=${inCompose ? 'postgres' : '127.0.0.1'};Port=${inCompose ? 5432 : env.POSTGRES_PORT || 5432};`
-      + `Database=${env.POSTGRES_DB || 'bepthaymao'};`
-      + `Username=${env.POSTGRES_USER || 'bepthaymao'};Password=${required('POSTGRES_PASSWORD')}`,
-    ConnectionStrings__Redis: `${at('redis', env.REDIS_PORT, 6379)},password=${required('REDIS_PASSWORD')}`,
-    ConnectionStrings__RabbitMq: `amqp://${encodeURIComponent(env.RABBITMQ_DEFAULT_USER || 'bepthaymao')}:`
-      + `${encodeURIComponent(required('RABBITMQ_DEFAULT_PASS'))}@${at('rabbitmq', env.RABBITMQ_PORT, 5672)}/`,
-    SePay__Mode: env.SePay__Mode || 'Fake',
-    Zalo__Mode: env.Zalo__Mode || 'Fake',
+    AllowedHosts: process.env.AllowedHosts ?? 'localhost;127.0.0.1;host.docker.internal',
+    ConnectionStrings__Default: `Host=127.0.0.1;Port=${env.POSTGRES_PORT};Database=${env.POSTGRES_DB};Username=${env.POSTGRES_USER};Password=${env.POSTGRES_PASSWORD}`,
+    ConnectionStrings__Redis: `127.0.0.1:${env.REDIS_PORT},password=${env.REDIS_PASSWORD}`,
+    ConnectionStrings__RabbitMq: `amqp://${encodeURIComponent(env.RABBITMQ_DEFAULT_USER)}:${encodeURIComponent(env.RABBITMQ_DEFAULT_PASS)}@127.0.0.1:${env.RABBITMQ_PORT}/`,
+    'SePay__Mode': env['SePay__Mode'] ?? 'Fake',
+    'Zalo__Mode': env['Zalo__Mode'] ?? 'Fake',
+    Auth__RefreshCookie__Secure: env.Auth__RefreshCookie__Secure ?? 'false',
+    ...Object.fromEntries(Object.entries(env).filter(([key]) => key.startsWith('Jwt__') || key.startsWith('Auth__') || key.startsWith('SEED_'))),
   };
-  if (env.OTEL_EXPORTER_OTLP_ENDPOINT) result.OTEL_EXPORTER_OTLP_ENDPOINT = env.OTEL_EXPORTER_OTLP_ENDPOINT;
-  return result;
 }

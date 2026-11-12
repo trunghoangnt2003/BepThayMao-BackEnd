@@ -2,54 +2,55 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: api
-  labels: { app: api }
 spec:
-  replicas: 2
+  replicas: 1
   selector:
-    matchLabels: { app: api }
+    matchLabels:
+      app: api
   template:
     metadata:
-      labels: { app: api }
+      labels:
+        app: api
     spec:
-      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
-        seccompProfile: { type: RuntimeDefault }
+        runAsUser: 1654
+        seccompProfile:
+          type: RuntimeDefault
       containers:
-        - name: api
-          image: bepthaymao-api
-          ports:
-            - { name: http, containerPort: 8080 }
-          envFrom:
-            - configMapRef: { name: bepthaymao-config }
-            # ConnectionStrings__Default/Redis/RabbitMq; values live only in the cluster.
-            - secretRef: { name: bepthaymao-api-secrets }
-          securityContext:
-            runAsNonRoot: true
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities: { drop: [ALL] }
-            seccompProfile: { type: RuntimeDefault }
-          livenessProbe:
-            httpGet: { path: /health/live, port: http }
-            periodSeconds: 10
-          readinessProbe:
-            httpGet: { path: /health/ready, port: http }
-            periodSeconds: 5
-          resources:
-            requests: { cpu: 100m, memory: 128Mi }
-            limits: { cpu: "1", memory: 512Mi }
-          volumeMounts:
-            - { name: tmp, mountPath: /tmp }
-      volumes:
+      - name: api
+        image: bepthaymao-api
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        volumeMounts:
         - name: tmp
-          emptyDir: {}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: api
-spec:
-  selector: { app: api }
-  ports:
-    - { name: http, port: 8080, targetPort: http }
+          mountPath: /tmp
+        ports:
+        - containerPort: 8080
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8080
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8080
+        envFrom:
+        - configMapRef:
+            name: bepthaymao-config
+        - secretRef:
+            name: bepthaymao-api-secrets
+      volumes:
+      - name: tmp
+        emptyDir: {}

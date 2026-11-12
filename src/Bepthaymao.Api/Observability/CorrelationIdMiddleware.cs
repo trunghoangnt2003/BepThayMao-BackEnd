@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Serilog.Context;
 
@@ -9,24 +8,28 @@ internal sealed partial class CorrelationIdMiddleware(RequestDelegate next)
     public const string HeaderName = "X-Correlation-Id";
     public const string ItemKey = "CorrelationId";
 
+    [GeneratedRegex("^[A-Za-z0-9._-]{1,64}$", RegexOptions.CultureInvariant)]
+    private static partial Regex CorrelationIdPattern();
+
     public async Task InvokeAsync(HttpContext context)
     {
-        string supplied = context.Request.Headers[HeaderName].ToString();
-        string id = supplied.Length <= 64 && CorrelationPattern().IsMatch(supplied)
-            ? supplied : Guid.CreateVersion7().ToString("N");
-        context.Items[ItemKey] = id;
-        context.Response.OnStarting(() =>
+        string candidate = context.Request.Headers[HeaderName].FirstOrDefault() ?? string.Empty;
+        string correlationId = CorrelationIdPattern().IsMatch(candidate)
+            ? candidate
+            : Guid.CreateVersion7().ToString("N");
+
+        context.Items[ItemKey] = correlationId;
+        context.Response.OnStarting(static state =>
         {
-            context.Response.Headers[HeaderName] = id;
+            (HttpContext httpContext, string id) = ((HttpContext, string))state;
+            httpContext.Response.Headers[HeaderName] = id;
             return Task.CompletedTask;
-        });
-        Activity.Current?.SetTag("correlation.id", id);
-        using (LogContext.PushProperty(ItemKey, id))
+        }, (context, correlationId));
+        System.Diagnostics.Activity.Current?.SetTag("correlation.id", correlationId);
+
+        using (LogContext.PushProperty("CorrelationId", correlationId))
         {
             await next(context);
         }
     }
-
-    [GeneratedRegex("^[A-Za-z0-9._-]{1,64}$", RegexOptions.CultureInvariant)]
-    private static partial Regex CorrelationPattern();
 }

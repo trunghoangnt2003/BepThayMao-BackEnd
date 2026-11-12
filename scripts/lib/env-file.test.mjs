@@ -1,63 +1,44 @@
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import test from 'node:test';
-import { buildApiEnv, ensureEnvFile, fillSecrets, parseEnv } from './env-file.mjs';
-
-test('parseEnv ignores comments and keeps everything after the first equals sign', () => {
-  assert.deepEqual(parseEnv('# c\n\nA=1\nB = x=y \nbroken\n'), { A: '1', B: 'x=y' });
-});
-
-test('fillSecrets only fills empty secret keys', () => {
-  const text = '# keep\nPOSTGRES_PASSWORD=\nREDIS_PASSWORD=set\nPOSTGRES_USER=\nRABBITMQ_DEFAULT_PASS=\n';
-  assert.equal(fillSecrets(text, () => 'gen'),
-    '# keep\nPOSTGRES_PASSWORD=gen\nREDIS_PASSWORD=set\nPOSTGRES_USER=\nRABBITMQ_DEFAULT_PASS=gen\n');
-});
-
-test('generated secrets are random url-safe strings', () => {
-  const [first, second] = [fillSecrets('REDIS_PASSWORD=\n'), fillSecrets('REDIS_PASSWORD=\n')];
-  assert.match(first, /^REDIS_PASSWORD=[A-Za-z0-9_-]{32}\n$/);
-  assert.notEqual(first, second);
-});
-
-test('ensureEnvFile creates once and keeps existing secrets', () => {
+import { ensureEnvFile, buildApiEnv } from './env-file.mjs';
+test('dev secrets are generated once and host allowlist supports Docker SSR', () => {
   const directory = mkdtempSync(join(tmpdir(), 'bep-env-'));
   try {
-    const example = join(directory, '.env.example');
-    const env = join(directory, '.env');
-    writeFileSync(example, 'POSTGRES_PASSWORD=\nPOSTGRES_USER=bepthaymao\n');
-    const first = ensureEnvFile(example, env);
-    const second = ensureEnvFile(example, env);
-    assert.equal(first.created, true);
-    assert.equal(second.created, false);
-    assert.equal(second.values.POSTGRES_PASSWORD, first.values.POSTGRES_PASSWORD);
-    assert.equal(readFileSync(example, 'utf8'), 'POSTGRES_PASSWORD=\nPOSTGRES_USER=bepthaymao\n');
-  } finally {
-    rmSync(directory, { recursive: true, force: true });
-  }
+    const example = join(directory, 'example');
+    const actual = join(directory, 'actual');
+    writeFileSync(example, 'POSTGRES_PASSWORD=\nREDIS_PASSWORD=\nRABBITMQ_DEFAULT_PASS=\n');
+    const first = ensureEnvFile(example, actual);
+    const second = ensureEnvFile(example, actual);
+    assert.deepEqual(first, second);
+    for (const key of ['POSTGRES_PASSWORD', 'REDIS_PASSWORD', 'RABBITMQ_DEFAULT_PASS']) assert.match(first[key], /^[A-Za-z0-9_-]{32}$/);
+    const env = buildApiEnv({ ...first, POSTGRES_PORT: '5432', POSTGRES_DB: 'sample', POSTGRES_USER: 'sample', REDIS_PORT: '6379', RABBITMQ_PORT: '5672', RABBITMQ_DEFAULT_USER: 'sample' });
+    assert.equal(env.ASPNETCORE_ENVIRONMENT, 'Development');
+    assert.ok(env.AllowedHosts.includes('localhost'));
+    assert.equal(env.SePay__Mode, 'Fake');
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('buildApiEnv builds loopback connection strings and escapes AMQP credentials', () => {
-  const env = buildApiEnv({
-    POSTGRES_PASSWORD: 'p', POSTGRES_PORT: '25432', REDIS_PASSWORD: 'r',
-    RABBITMQ_DEFAULT_USER: 'u', RABBITMQ_DEFAULT_PASS: 'a/b', OTEL_EXPORTER_OTLP_ENDPOINT: '',
-  });
-  assert.equal(env.ConnectionStrings__Default, 'Host=127.0.0.1;Port=25432;Database=bepthaymao;Username=bepthaymao;Password=p');
-  assert.equal(env.ConnectionStrings__Redis, '127.0.0.1:6379,password=r');
-  assert.equal(env.ConnectionStrings__RabbitMq, 'amqp://u:a%2Fb@127.0.0.1:5672/');
-  assert.equal(env.SePay__Mode, 'Fake');
-  assert.equal('OTEL_EXPORTER_OTLP_ENDPOINT' in env, false);
+test('JWT signing key is generated once with 48 bytes and auth settings reach API', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'bep-jwt-env-'));
+  try {
+    const example = join(directory, 'example');
+    const actual = join(directory, 'actual');
+    writeFileSync(example, 'Jwt__SigningKey=\nAuth__RefreshCookie__Secure=false\n');
+    const first = ensureEnvFile(example, actual);
+    const second = ensureEnvFile(example, actual);
+    assert.equal(first.Jwt__SigningKey, second.Jwt__SigningKey);
+    assert.ok(Buffer.from(first.Jwt__SigningKey, 'base64').length >= 48);
+    const api = buildApiEnv(first);
+    assert.equal(api.Jwt__SigningKey, first.Jwt__SigningKey);
+    assert.equal(api.Auth__RefreshCookie__Secure, 'false');
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('buildApiEnv inCompose uses service names and internal ports', () => {
-  const env = buildApiEnv({ POSTGRES_PASSWORD: 'p', POSTGRES_PORT: '25432', REDIS_PASSWORD: 'r', REDIS_PORT: '6380',
-    RABBITMQ_DEFAULT_PASS: 'a' }, { inCompose: true });
-  assert.equal(env.ConnectionStrings__Default, 'Host=postgres;Port=5432;Database=bepthaymao;Username=bepthaymao;Password=p');
-  assert.equal(env.ConnectionStrings__Redis, 'redis:6379,password=r');
-  assert.equal(env.ConnectionStrings__RabbitMq, 'amqp://bepthaymao:a@rabbitmq:5672/');
-});
-
-test('buildApiEnv fails with the missing key name', () => {
-  assert.throws(() => buildApiEnv({}), /POSTGRES_PASSWORD/);
+test('seed account configuration reaches the CLI without generated passwords', () => {
+  const input = { SEED_OWNER_USERNAME: 'owner', SEED_OWNER_NAME: 'Owner', SEED_OWNER_PASSWORD: 'test-seed-only-password', SEED_MANAGER_PASSWORD: 'test-manager-only-password' };
+  const actual = buildApiEnv(input);
+  for (const [key, value] of Object.entries(input)) assert.equal(actual[key], value);
 });

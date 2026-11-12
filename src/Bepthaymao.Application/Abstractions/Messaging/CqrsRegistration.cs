@@ -8,38 +8,52 @@ public static class CqrsRegistration
 {
     public static IServiceCollection AddCqrsHandlers(this IServiceCollection services, Assembly assembly)
     {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(assembly);
-        foreach (Type handler in assembly.GetTypes().Where(type => type is { IsAbstract: false, IsClass: true, ContainsGenericParameters: false }))
+        foreach (Type implementationType in assembly.GetTypes().Where(type =>
+                     type is { IsAbstract: false, IsInterface: false }))
         {
-            foreach (Type contract in handler.GetInterfaces().Where(IsHandlerContract))
+            foreach (Type serviceType in implementationType.GetInterfaces().Where(IsHandlerInterface))
             {
-                services.AddScoped(handler);
-                services.AddScoped(contract, provider => Decorate(provider, contract, handler));
+                services.AddScoped(implementationType);
+                services.AddScoped(serviceType, provider =>
+                {
+                    Type handlerType = serviceType.GetGenericTypeDefinition();
+                    Type[] arguments = serviceType.GetGenericArguments();
+                    object current = provider.GetRequiredService(implementationType);
+
+                    if (handlerType == typeof(ICommandHandler<,>))
+                    {
+                        Type unitOfWorkType = typeof(UnitOfWorkCommandHandlerDecorator<,>)
+                            .MakeGenericType(arguments);
+                        current = ActivatorUtilities.CreateInstance(provider, unitOfWorkType, current);
+                        Type validationType = typeof(ValidationCommandHandlerDecorator<,>)
+                            .MakeGenericType(arguments);
+                        current = ActivatorUtilities.CreateInstance(provider, validationType, current);
+                        Type loggingType = typeof(LoggingCommandHandlerDecorator<,>)
+                            .MakeGenericType(arguments);
+                        return ActivatorUtilities.CreateInstance(provider, loggingType, current);
+                    }
+
+                    Type queryValidationType = typeof(ValidationQueryHandlerDecorator<,>)
+                        .MakeGenericType(arguments);
+                    current = ActivatorUtilities.CreateInstance(provider, queryValidationType, current);
+                    Type queryLoggingType = typeof(LoggingQueryHandlerDecorator<,>)
+                        .MakeGenericType(arguments);
+                    return ActivatorUtilities.CreateInstance(provider, queryLoggingType, current);
+                });
             }
         }
 
         return services;
     }
 
-    private static bool IsHandlerContract(Type type) => type.IsGenericType
-        && (type.GetGenericTypeDefinition() == typeof(ICommandHandler<,>)
-            || type.GetGenericTypeDefinition() == typeof(IQueryHandler<,>));
-
-    private static object Decorate(IServiceProvider provider, Type contract, Type concrete)
+    private static bool IsHandlerInterface(Type type)
     {
-        Type[] arguments = contract.GetGenericArguments();
-        object handler = provider.GetRequiredService(concrete);
-        bool command = contract.GetGenericTypeDefinition() == typeof(ICommandHandler<,>);
-        if (command)
+        if (!type.IsGenericType)
         {
-            handler = ActivatorUtilities.CreateInstance(provider,
-                typeof(UnitOfWorkCommandHandlerDecorator<,>).MakeGenericType(arguments), handler);
+            return false;
         }
 
-        handler = ActivatorUtilities.CreateInstance(provider,
-            (command ? typeof(ValidationCommandHandlerDecorator<,>) : typeof(ValidationQueryHandlerDecorator<,>)).MakeGenericType(arguments), handler);
-        return ActivatorUtilities.CreateInstance(provider,
-            (command ? typeof(LoggingCommandHandlerDecorator<,>) : typeof(LoggingQueryHandlerDecorator<,>)).MakeGenericType(arguments), handler);
+        Type definition = type.GetGenericTypeDefinition();
+        return definition == typeof(ICommandHandler<,>) || definition == typeof(IQueryHandler<,>);
     }
 }

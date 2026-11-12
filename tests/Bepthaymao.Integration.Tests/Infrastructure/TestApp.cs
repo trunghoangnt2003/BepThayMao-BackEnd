@@ -1,66 +1,76 @@
-using System.Globalization;
 using Bepthaymao.Api.Errors;
 using Bepthaymao.Api.Observability;
 using Bepthaymao.Api.Security;
+using Bepthaymao.Application.Abstractions.Errors;
 using Bepthaymao.Domain.Common;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Serilog.Core;
-using ValidationException = Bepthaymao.Application.Abstractions.Errors.ValidationException;
+using Serilog;
 
 namespace Bepthaymao.Integration.Tests.Infrastructure;
 
 internal sealed class TestApp : IAsyncDisposable
 {
-    private readonly WebApplication _application;
-
-    private TestApp(WebApplication application, CollectingSink sink)
+    private TestApp(WebApplication app, CollectingSink sink, HttpClient client)
     {
-        _application = application;
-        Client = application.GetTestClient();
+        Application = app;
         Sink = sink;
+        Client = client;
     }
 
-    public HttpClient Client { get; }
+    public WebApplication Application { get; }
+
     public CollectingSink Sink { get; }
 
-    public static async Task<TestApp> StartAsync(int permitLimit = 120)
+    public HttpClient Client { get; }
+
+    public static async Task<TestApp> CreateAsync(int permitLimit = 2)
     {
-        WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = Environments.Production });
+        WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            EnvironmentName = "Testing",
+            ApplicationName = typeof(Program).Assembly.GetName().Name,
+        });
         builder.WebHost.UseTestServer();
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["RateLimiting:Public:PermitLimit"] = permitLimit.ToString(CultureInfo.InvariantCulture),
+            ["RateLimiting:Public:PermitLimit"] = permitLimit.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["RateLimiting:Public:WindowSeconds"] = "60",
         });
         CollectingSink sink = new();
-        builder.Services.AddSingleton<ILogEventSink>(sink);
-        builder.AddApiLogging();
         builder.Services.AddApiErrorHandling();
+        builder.Services.AddApiForwardedHeaders(builder.Configuration);
         builder.Services.AddApiRateLimiting(builder.Configuration);
-        WebApplication application = builder.Build();
-        application.UseMiddleware<CorrelationIdMiddleware>();
-        application.UseApiRequestLogging();
-        application.UseApiErrorHandling();
-        application.UseRouting();
-        application.UseRateLimiter();
-        application.MapGet("/ok", () => "ok").RequireRateLimiting(RateLimitPolicies.Public);
-        application.MapGet("/fail", () => Throw(new InvalidOperationException("private-exception-detail")));
-        application.MapGet("/invalid", () => Throw(new ValidationException(new Dictionary<string, string[]> { ["items[0].openTime"] = ["Required"] })));
-        application.MapGet("/domain", () => Throw(new DomainRuleException("openTime", "Giờ không hợp lệ.")));
-        await application.StartAsync(TestContext.Current.CancellationToken);
-        return new TestApp(application, sink);
+        Log.Logger = new LoggerConfiguration()
+            .Enrich.FromLogContext()
+            .WriteTo.Sink(sink)
+            .CreateLogger();
+        builder.Services.AddSerilog();
+
+        WebApplication app = builder.Build();
+        app.UseForwardedHeaders();
+        app.UseMiddleware<CorrelationIdMiddleware>();
+        app.UseSerilogRequestLogging();
+        app.UseApiErrorHandling();
+        app.UseRateLimiter();
+        app.MapGet("/throw", static IResult () => throw new InvalidOperationException("secret exception detail"));
+        app.MapGet("/validation", static IResult () => throw new ValidationException(
+            new Dictionary<string, string[]> { ["items[0].openTime"] = ["invalid"] }));
+        app.MapGet("/domain", static IResult () => throw new DomainRuleException("openTime", "closed"));
+        app.MapGet("/limited", static () => Results.Ok("ok")).RequireRateLimiting(RateLimitPolicies.Public);
+        app.MapGet("/ok", static () => Results.Ok("ok"));
+        await app.StartAsync(TestContext.Current.CancellationToken);
+        TestServer server = (TestServer)app.Services.GetRequiredService<IServer>();
+        return new TestApp(app, sink, server.CreateClient());
     }
 
     public async ValueTask DisposeAsync()
     {
         Client.Dispose();
-        await _application.DisposeAsync();
+        await Application.DisposeAsync();
     }
-
-    private static IResult Throw(Exception exception) => throw exception;
 }

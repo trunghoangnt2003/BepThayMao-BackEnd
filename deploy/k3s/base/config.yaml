@@ -3,8 +3,8 @@ kind: ConfigMap
 metadata:
   name: bepthaymao-config
 data:
-  ASPNETCORE_ENVIRONMENT: Production
+  ASPNETCORE_ENVIRONMENT: Development
   SePay__Mode: Fake
   Zalo__Mode: Fake
-  # Default k3s pod CIDR (A13): trust X-Forwarded-* only from Traefik pods.
   ReverseProxy__KnownNetworks__0: 10.42.0.0/16
+  AllowedHosts: localhost;127.0.0.1;api

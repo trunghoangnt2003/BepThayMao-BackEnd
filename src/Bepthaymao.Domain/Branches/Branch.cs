@@ -5,75 +5,112 @@ namespace Bepthaymao.Domain.Branches;
 
 public sealed partial class Branch
 {
-    public const int NameMaxLength = 200;
-    public const int AddressMaxLength = 500;
-    public const int PhoneMaxLength = 20;
-
     private Branch() { }
 
     public Guid Id { get; private set; }
-    public string Name { get; private set; } = string.Empty;
-    public string Address { get; private set; } = string.Empty;
-    public string Phone { get; private set; } = string.Empty;
+    public Guid OwnerId { get; private set; }
+    public double Lat { get; private set; }
+    public double Lng { get; private set; }
+    public int AbandonedThresholdMinutes { get; private set; }
+    public List<string> ZaloRecipientIds { get; private set; } = [];
+    public string? BankAccountNo { get; private set; }
+    public string? BankCode { get; private set; }
+    public string? SepayAccountRef { get; private set; }
+    public string Name { get; private set; } = "";
+    public string Address { get; private set; } = "";
+    public string Phone { get; private set; } = "";
     public TimeOnly OpenTime { get; private set; }
     public TimeOnly CloseTime { get; private set; }
     public bool IsActive { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
 
-    public static Branch Create(Guid id, string name, string address, string phone, TimeOnly openTime,
-        TimeOnly closeTime, bool isActive, DateTimeOffset createdAt)
+    public static Branch Create(Guid id, Guid ownerId, BranchDetails details, DateTimeOffset createdAt)
     {
-        if (id == Guid.Empty)
-        {
-            throw new DomainRuleException("id", "Mã cơ sở không hợp lệ.");
-        }
-
-        Branch branch = new() { Id = id, CreatedAt = createdAt.ToUniversalTime() };
-        branch.ApplyDetails(name, address, phone, openTime, closeTime, isActive);
+        if (id == Guid.Empty) throw new DomainRuleException("id", "Mã cơ sở không hợp lệ.");
+        if (ownerId == Guid.Empty) throw new DomainRuleException("ownerId", "Mã chủ sở hữu không hợp lệ.");
+        Branch branch = new() { Id = id, OwnerId = ownerId, CreatedAt = createdAt.ToUniversalTime() };
+        branch.ApplyOwnerDetails(details);
         return branch;
     }
 
-    /// <returns><see langword="true"/> when any stored value changed.</returns>
-    public bool ApplyDetails(string name, string address, string phone, TimeOnly openTime,
-        TimeOnly closeTime, bool isActive)
+    public bool ApplyOwnerDetails(BranchDetails details)
     {
-        string normalizedName = Required(name, "name", NameMaxLength, "Nhập tên cơ sở.");
-        string normalizedAddress = Required(address, "address", AddressMaxLength, "Nhập địa chỉ.");
-        string normalizedPhone = NormalizePhone(phone);
-        if (openTime >= closeTime)
-        {
-            throw new DomainRuleException("openTime", "Giờ đóng phải sau giờ mở trong cùng một ngày.");
-        }
-
-        bool changed = Name != normalizedName || Address != normalizedAddress || Phone != normalizedPhone
-            || OpenTime != openTime || CloseTime != closeTime || IsActive != isActive;
-        Name = normalizedName;
-        Address = normalizedAddress;
-        Phone = normalizedPhone;
-        OpenTime = openTime;
-        CloseTime = closeTime;
-        IsActive = isActive;
+        (string name, string address, string phone, double lat, double lng, TimeOnly openTime, TimeOnly closeTime,
+            int abandonedThresholdMinutes, IReadOnlyList<string> zaloRecipientIds, string? bankAccountNo,
+            string? bankCode, string? sepayAccountRef, bool isActive) = details;
+        name = name.Trim();
+        address = address.Trim();
+        if (name.Length is 0 or > 200) throw new DomainRuleException("name", "Nhập tên cơ sở (tối đa 200 ký tự).");
+        if (address.Length is 0 or > 500) throw new DomainRuleException("address", "Nhập địa chỉ (tối đa 500 ký tự).");
+        phone = NormalizePhone(phone);
+        EnsureOpensBeforeCloses(openTime, closeTime);
+        if (!double.IsFinite(lat) || lat is < -90 or > 90) throw new DomainRuleException("lat", "Vĩ độ nằm trong khoảng từ -90 đến 90.");
+        if (!double.IsFinite(lng) || lng is < -180 or > 180) throw new DomainRuleException("lng", "Kinh độ nằm trong khoảng từ -180 đến 180.");
+        EnsureThreshold(abandonedThresholdMinutes);
+        string[] normalizedIds = NormalizeZaloIds(zaloRecipientIds);
+        bankAccountNo = NormalizeOptional(bankAccountNo, 50, "bankAccountNo");
+        bankCode = NormalizeOptional(bankCode, 20, "bankCode");
+        sepayAccountRef = NormalizeOptional(sepayAccountRef, 100, "sepayAccountRef");
+        bool changed = Name != name || Address != address || Phone != phone || OpenTime != openTime || CloseTime != closeTime || IsActive != isActive ||
+            Lat != lat || Lng != lng || AbandonedThresholdMinutes != abandonedThresholdMinutes ||
+            !ZaloRecipientIds.SequenceEqual(normalizedIds) || BankAccountNo != bankAccountNo || BankCode != bankCode || SepayAccountRef != sepayAccountRef;
+        (Name, Address, Phone, OpenTime, CloseTime, IsActive) = (name, address, phone, openTime, closeTime, isActive);
+        (Lat, Lng, AbandonedThresholdMinutes, ZaloRecipientIds, BankAccountNo, BankCode, SepayAccountRef) =
+            (lat, lng, abandonedThresholdMinutes, [.. normalizedIds], bankAccountNo, bankCode, sepayAccountRef);
         return changed;
     }
 
-    public static string NormalizePhone(string phone)
+    /// <summary>Quản lý chỉ sửa năm trường này; danh tính, vị trí, trạng thái và tài khoản nhận tiền chỉ Chủ sở hữu sửa.</summary>
+    public bool ApplyManagerSettings(string phone, TimeOnly openTime, TimeOnly closeTime, int abandonedThresholdMinutes,
+        IReadOnlyList<string> zaloRecipientIds)
     {
-        string normalized = (phone ?? string.Empty).Replace(" ", string.Empty, StringComparison.Ordinal)
-            .Replace(".", string.Empty, StringComparison.Ordinal);
-        return PhonePattern().IsMatch(normalized)
-            ? normalized
-            : throw new DomainRuleException("phone", "Nhập số điện thoại hợp lệ, ví dụ 0901 234 567.");
+        phone = NormalizePhone(phone);
+        EnsureOpensBeforeCloses(openTime, closeTime);
+        EnsureThreshold(abandonedThresholdMinutes);
+        string[] normalizedIds = NormalizeZaloIds(zaloRecipientIds);
+        bool changed = Phone != phone || OpenTime != openTime || CloseTime != closeTime ||
+            AbandonedThresholdMinutes != abandonedThresholdMinutes || !ZaloRecipientIds.SequenceEqual(normalizedIds);
+        (Phone, OpenTime, CloseTime, AbandonedThresholdMinutes, ZaloRecipientIds) =
+            (phone, openTime, closeTime, abandonedThresholdMinutes, [.. normalizedIds]);
+        return changed;
     }
 
-    private static string Required(string value, string rule, int maximumLength, string message)
+    private static string NormalizePhone(string phone)
     {
-        string normalized = value?.Trim() ?? string.Empty;
-        return normalized.Length == 0 || normalized.Length > maximumLength
-            ? throw new DomainRuleException(rule, message)
-            : normalized;
+        phone = string.Concat(phone.Where(character => !char.IsWhiteSpace(character) && character != '.'));
+        if (!PhonePattern().IsMatch(phone)) throw new DomainRuleException("phone", "Nhập số điện thoại hợp lệ, ví dụ 0901 234 567.");
+        return phone;
     }
 
-    // UI-SPEC A4: +84 or 0 followed by 8-10 digits, after stripping spaces and dots.
+    private static void EnsureOpensBeforeCloses(TimeOnly openTime, TimeOnly closeTime)
+    {
+        if (openTime >= closeTime) throw new DomainRuleException("openTime", "Giờ đóng phải sau giờ mở trong cùng một ngày.");
+    }
+
+    private static void EnsureThreshold(int abandonedThresholdMinutes)
+    {
+        if (abandonedThresholdMinutes is < 1 or > 1440) throw new DomainRuleException("abandonedThresholdMinutes", "Nhập số phút là số nguyên, tối thiểu 1.");
+    }
+
+    private static string[] NormalizeZaloIds(IReadOnlyList<string> zaloRecipientIds)
+    {
+        string[] normalizedIds = zaloRecipientIds.Select(value => value?.Trim() ?? "").ToArray();
+        if (normalizedIds.Length > 20 || normalizedIds.Any(value => value.Length is 0 or > 64))
+            throw new DomainRuleException("zaloRecipientIds", "Nhập tối đa 20 ID Zalo, mỗi ID từ 1 đến 64 ký tự.");
+        HashSet<string> uniqueIds = new(StringComparer.Ordinal);
+        foreach (string value in normalizedIds)
+            if (!uniqueIds.Add(value)) throw new DomainRuleException("zaloRecipientIds", $"ID Zalo bị trùng: {value}.");
+        return normalizedIds;
+    }
+
+    private static string? NormalizeOptional(string? value, int maxLength, string field)
+    {
+        value = value?.Trim();
+        if (string.IsNullOrEmpty(value)) return null;
+        if (value.Length > maxLength) throw new DomainRuleException(field, $"Nhập tối đa {maxLength} ký tự.");
+        return value;
+    }
+
     [GeneratedRegex(@"^(\+84|0)[0-9]{8,10}$", RegexOptions.CultureInvariant)]
     private static partial Regex PhonePattern();
 }

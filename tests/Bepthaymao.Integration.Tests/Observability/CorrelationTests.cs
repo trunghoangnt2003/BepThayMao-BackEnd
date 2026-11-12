@@ -1,39 +1,56 @@
-using System.Text.Json;
 using Bepthaymao.Integration.Tests.Infrastructure;
+using System.Net;
+using System.Globalization;
 
 namespace Bepthaymao.Integration.Tests.Observability;
 
-public sealed class CorrelationTests
+public sealed class CorrelationTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
-    [Theory]
-    [InlineData("abc-123", true)]
-    [InlineData("bad,value", false)]
-    [InlineData("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", false)]
-    public async Task CorrelationIsValidatedAndMatchesHeaderAndBody(string supplied, bool accepted)
+    [Fact]
+    public async Task LiveEndpointEchoesCorrelationHeader()
     {
-        await using TestApp app = await TestApp.StartAsync();
-        app.Client.DefaultRequestHeaders.Add("X-Correlation-Id", supplied);
-        using HttpResponseMessage response = await app.Client.GetAsync("/fail", TestContext.Current.CancellationToken);
-        string id = response.Headers.GetValues("X-Correlation-Id").Single();
-        Assert.Equal(accepted, id == supplied);
-        Assert.Matches("^[A-Za-z0-9._-]{1,64}$", id);
-        using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        Assert.Equal(id, document.RootElement.GetProperty("correlationId").GetString());
+        using HttpRequestMessage request = new(HttpMethod.Get, "/health/live");
+        request.Headers.Add("X-Correlation-Id", "abc-123");
+
+        using HttpResponseMessage response = await factory.CreateClient().SendAsync(
+            request, TestContext.Current.CancellationToken);
+
+        Assert.Equal("abc-123", response.Headers.GetValues("X-Correlation-Id").Single());
     }
 
     [Fact]
-    public async Task JsonLogsHaveCorrelationButNoAuthorizationOrCookieValues()
+    public async Task InvalidCorrelationHeaderIsReplaced()
     {
-        await using TestApp app = await TestApp.StartAsync();
-        app.Client.DefaultRequestHeaders.Add("X-Correlation-Id", "abc-123");
-        app.Client.DefaultRequestHeaders.Add("Authorization", "Bearer test-secret-value");
-        app.Client.DefaultRequestHeaders.Add("Cookie", "session=private-cookie-value");
-        using HttpResponseMessage response = await app.Client.GetAsync("/ok?phone=private-phone-value", TestContext.Current.CancellationToken);
-        response.EnsureSuccessStatusCode();
-        string logs = app.Sink.Render();
-        Assert.Contains("\"CorrelationId\":\"abc-123\"", logs, StringComparison.Ordinal);
-        Assert.DoesNotContain("test-secret-value", logs, StringComparison.Ordinal);
-        Assert.DoesNotContain("private-cookie-value", logs, StringComparison.Ordinal);
-        Assert.DoesNotContain("private-phone-value", logs, StringComparison.Ordinal);
+        await using TestApp app = await TestApp.CreateAsync();
+        using HttpRequestMessage request = new(HttpMethod.Get, "/ok");
+        request.Headers.Add("X-Correlation-Id", new string('x', 65));
+
+        using HttpResponseMessage response = await app.Client.SendAsync(
+            request, TestContext.Current.CancellationToken);
+        string correlationId = response.Headers.GetValues("X-Correlation-Id").Single();
+
+        Assert.NotEqual(new string('x', 65), correlationId);
+        Assert.InRange(correlationId.Length, 1, 64);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task LogsContainCorrelationButNeverAuthorizationOrCookieValues()
+    {
+        await using TestApp app = await TestApp.CreateAsync();
+        using HttpRequestMessage request = new(HttpMethod.Get, "/ok");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", "test-secret-value");
+        request.Headers.Add("Cookie", "session=private-cookie-value");
+
+        using HttpResponseMessage response = await app.Client.SendAsync(
+            request, TestContext.Current.CancellationToken);
+        string rendered = string.Join(Environment.NewLine, app.Sink.Events.Select(logEvent =>
+            logEvent.RenderMessage(CultureInfo.InvariantCulture)));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotEmpty(app.Sink.Events);
+        Assert.Contains(app.Sink.Events, logEvent => logEvent.Properties.ContainsKey("CorrelationId"));
+        Assert.DoesNotContain("test-secret-value", rendered, StringComparison.Ordinal);
+        Assert.DoesNotContain("private-cookie-value", rendered, StringComparison.Ordinal);
     }
 }

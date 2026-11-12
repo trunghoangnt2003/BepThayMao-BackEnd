@@ -1,27 +1,21 @@
-using Bepthaymao.Api.Security;
 using Bepthaymao.Application.Abstractions.Messaging;
 using Bepthaymao.Application.Branches.ListPublicBranches;
+using Bepthaymao.Api.Security;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Bepthaymao.Api.Endpoints.Branches;
 
-internal static class PublicBranchesEndpoints
+public static class PublicBranchesEndpoints
 {
-    public static RouteGroupBuilder MapPublicBranchesEndpoints(this RouteGroupBuilder group)
+    public static RouteGroupBuilder MapPublicBranchesEndpoints(this RouteGroupBuilder v1)
     {
-        group.MapGet("/branches", async (
-                IQueryHandler<ListPublicBranchesQuery, IReadOnlyList<PublicBranch>> handler,
-                CancellationToken cancellationToken) =>
-                Results.Ok(await handler.Handle(new ListPublicBranchesQuery(), cancellationToken).ConfigureAwait(false)))
-            .WithName("listPublicBranches")
-            .WithTags("Branches")
-            .WithSummary("Danh sách cơ sở đang hoạt động")
-            .WithDescription("Chỉ trả thông tin công khai tối thiểu; không lộ tọa độ, cấu hình ngân hàng, SePay, Zalo hay cờ hoạt động.")
-            .AllowAnonymous()
-            .Produces<IReadOnlyList<PublicBranch>>()
-            .Produces<ProblemDetails>(StatusCodes.Status429TooManyRequests, "application/problem+json")
-            .Produces<ProblemDetails>(StatusCodes.Status500InternalServerError, "application/problem+json")
-            .RequireRateLimiting(RateLimitPolicies.Public);
-        return group;
+        v1.MapGet("/branches", async ([FromServices] IQueryHandler<ListPublicBranchesQuery, IReadOnlyList<PublicBranch>> handler,
+            CancellationToken cancellationToken) => TypedResults.Ok(await handler.Handle(new(), cancellationToken)))
+            .WithName("listPublicBranches").WithTags("Branches")
+            .WithSummary("Danh sách cơ sở đang hoạt động (công khai)")
+            .WithDescription("Danh sách cơ sở đang hoạt động; chỉ trả dữ liệu công khai, không yêu cầu đăng nhập.")
+            .AllowAnonymous().RequireRateLimiting(RateLimitPolicies.Public)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests).ProducesProblem(StatusCodes.Status500InternalServerError);
+        return v1;
     }
 }

@@ -29,6 +29,6 @@ dotnet_naming_symbols.private_fields.required_modifiers =
 dotnet_naming_style.private_field_style.required_prefix = _
 dotnet_naming_style.private_field_style.capitalization = camel_case
 
-# EF Core tool output (dotnet ef migrations add); regenerated, never hand-edited, so analyzers treat it as generated code.
-[src/Bepthaymao.Infrastructure/Persistence/Migrations/*.cs]
+# dotnet-ef generated migrations; handwritten source keeps all analyzers.
+[**/Persistence/Migrations/*.cs]
 generated_code = true

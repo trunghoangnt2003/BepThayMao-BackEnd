@@ -2,14 +2,17 @@ using Bepthaymao.Integration.Tests.Infrastructure;
 
 namespace Bepthaymao.Integration.Tests.Security;
 
-public sealed class CorsTests
+public sealed class CorsTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     [Fact]
-    public async Task UntrustedOriginDoesNotReceiveCorsPermission()
+    public async Task CrossOriginResponseDoesNotGrantCorsAccess()
     {
-        await using TestApp app = await TestApp.StartAsync();
-        app.Client.DefaultRequestHeaders.Add("Origin", "https://evil.example");
-        using HttpResponseMessage response = await app.Client.GetAsync("/ok", TestContext.Current.CancellationToken);
+        using HttpRequestMessage request = new(HttpMethod.Get, "/health/live");
+        request.Headers.Add("Origin", "https://evil.example");
+
+        using HttpResponseMessage response = await factory.CreateClient().SendAsync(
+            request, TestContext.Current.CancellationToken);
+
         Assert.False(response.Headers.Contains("Access-Control-Allow-Origin"));
     }
 }

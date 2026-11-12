@@ -1,103 +1,65 @@
-using Bepthaymao.Application.Abstractions.Messaging;
-using Bepthaymao.Application.Abstractions.Persistence;
 using Bepthaymao.Application.Branches;
 using Bepthaymao.Application.Branches.UpsertBranches;
 using Bepthaymao.Domain.Branches;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
-using ValidationException = Bepthaymao.Application.Abstractions.Errors.ValidationException;
+using Bepthaymao.Domain.Common;
+using Microsoft.Extensions.Time.Testing;
+using NSubstitute;
 
 namespace Bepthaymao.Application.Tests.Branches;
 
 public sealed class UpsertBranchesTests
 {
-    private static readonly BranchUpsertItem _first = new(Guid.CreateVersion7(), "Cơ sở Mẫu 1", "Số 1", "02800000001",
-        new TimeOnly(6, 0), new TimeOnly(21, 30), true);
-    private static readonly BranchUpsertItem _second = new(Guid.CreateVersion7(), "Cơ sở Mẫu 2", "Số 2", "02800000002",
-        new TimeOnly(7, 0), new TimeOnly(21, 0), false);
-
     [Fact]
-    public async Task RunningTwiceInsertsThenReportsUnchanged()
+    public async Task HandlerInsertsUpdatesAndPreservesCreationTime()
     {
-        using ServiceProvider provider = CreateProvider(out FakeStore store);
-        UpsertBranchesResult first = await HandleAsync(provider, [_first, _second]);
-        UpsertBranchesResult second = await HandleAsync(provider, [_first, _second]);
-
-        first.Should().Be(new UpsertBranchesResult(2, 0, 0));
-        second.Should().Be(new UpsertBranchesResult(0, 0, 2));
-        store.Branches.Should().HaveCount(2);
-        store.Saves.Should().Be(2);
-    }
-
-    [Fact]
-    public async Task ChangedItemIsCountedAsUpdated()
-    {
-        using ServiceProvider provider = CreateProvider(out FakeStore store);
-        await HandleAsync(provider, [_first]);
-        UpsertBranchesResult result = await HandleAsync(provider, [_first with { Name = "Cơ sở Đổi Tên" }]);
-
-        result.Should().Be(new UpsertBranchesResult(0, 1, 0));
-        store.Branches[_first.Id].Name.Should().Be("Cơ sở Đổi Tên");
+        IBranchRepository repository = Substitute.For<IBranchRepository>();
+        DateTimeOffset now = new(2026, 11, 9, 0, 0, 0, TimeSpan.Zero);
+        FakeTimeProvider clock = new(now);
+        Guid ownerId = Guid.CreateVersion7();
+        BranchUpsertItem item = new(Guid.CreateVersion7(), "Mẫu", "Địa chỉ", "0901234567", "06:00", "21:30", true);
+        UpsertBranchesCommandHandler handler = new(repository, clock);
+        Assert.Equal(new(1, 0, 0), await handler.Handle(new(ownerId, [item]), TestContext.Current.CancellationToken));
+        repository.Received(1).Add(Arg.Is<Branch>(branch => branch.CreatedAt == now));
+        Branch existing = Branch.Create(item.Id, ownerId, new(item.Name, item.Address, item.Phone, 0, 0, new(6, 0), new(21, 30), 10, [], null, null, null, true), now);
+        repository.FindAsync(item.Id, Arg.Any<CancellationToken>()).Returns(existing);
+        Assert.Equal(new(0, 0, 1), await handler.Handle(new(ownerId, [item]), TestContext.Current.CancellationToken));
+        Assert.Equal(new(0, 1, 0), await handler.Handle(new(ownerId, [item with { Name = "Đổi tên" }]), TestContext.Current.CancellationToken));
+        Assert.Equal(now, existing.CreatedAt);
     }
 
     [Fact]
-    public async Task InvalidBatchIsRejectedBeforeAnyWrite()
+    public async Task ValidatorRejectsEmptyDuplicateAndInvalidTime()
     {
-        using ServiceProvider provider = CreateProvider(out FakeStore store);
-        BranchUpsertItem invalid = _second with { CloseTime = new TimeOnly(5, 0) };
-
-        ValidationException exception = await Assert.ThrowsAsync<ValidationException>(() =>
-            HandleAsync(provider, [_first, invalid]));
-
-        exception.Errors.Keys.Should().Contain(key => key.StartsWith("branches", StringComparison.Ordinal));
-        store.Branches.Should().BeEmpty();
-        store.Saves.Should().Be(0);
+        UpsertBranchesCommandValidator validator = new();
+        Guid ownerId = Guid.CreateVersion7();
+        Assert.False((await validator.ValidateAsync(new UpsertBranchesCommand(ownerId, []), TestContext.Current.CancellationToken)).IsValid);
+        BranchUpsertItem item = new(Guid.CreateVersion7(), "Mẫu", "Địa chỉ", "0901234567", "25:00", "21:30", true);
+        var result = await validator.ValidateAsync(new UpsertBranchesCommand(ownerId, [item, item]), TestContext.Current.CancellationToken);
+        Assert.Contains(result.Errors, error => error.PropertyName == "branches[0].openTime");
+        Assert.Contains(result.Errors, error => error.PropertyName == "branches[1].id");
+        Assert.True((await validator.ValidateAsync(new UpsertBranchesCommand(ownerId, [item with { OpenTime = "06:00" }]), TestContext.Current.CancellationToken)).IsValid);
     }
 
     [Fact]
-    public async Task DuplicateIdsAreRejected()
+    public async Task ValidatorReportsCoordinatePath()
     {
-        using ServiceProvider provider = CreateProvider(out FakeStore store);
-        await Assert.ThrowsAsync<ValidationException>(() => HandleAsync(provider, [_first, _first]));
-        store.Saves.Should().Be(0);
+        Guid ownerId = Guid.CreateVersion7();
+        BranchUpsertItem item = new(Guid.CreateVersion7(), "Mẫu", "Địa chỉ", "0901234567", "06:00", "21:30", true, Lat: 91);
+        var validation = await new UpsertBranchesCommandValidator().ValidateAsync(new UpsertBranchesCommand(ownerId, [item]), TestContext.Current.CancellationToken);
+        Assert.Contains(validation.Errors, error => error.PropertyName == "branches[0].lat");
     }
 
-    private static async Task<UpsertBranchesResult> HandleAsync(ServiceProvider provider, BranchUpsertItem[] items)
+    [Fact]
+    public async Task HandlerRejectsAnotherOwner()
     {
-        using IServiceScope scope = provider.CreateScope();
-        return await scope.ServiceProvider.GetRequiredService<ICommandHandler<UpsertBranchesCommand, UpsertBranchesResult>>()
-            .Handle(new UpsertBranchesCommand(items), TestContext.Current.CancellationToken);
-    }
-
-    private static ServiceProvider CreateProvider(out FakeStore store)
-    {
-        FakeStore instance = new();
-        store = instance;
-        ServiceCollection services = new();
-        services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
-        services.AddSingleton(TimeProvider.System);
-        services.AddSingleton(instance);
-        services.AddScoped<IBranchRepository>(provider => provider.GetRequiredService<FakeStore>());
-        services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<FakeStore>());
-        services.AddApplication();
-        return services.BuildServiceProvider(validateScopes: true);
-    }
-
-    internal sealed class FakeStore : IBranchRepository, IUnitOfWork
-    {
-        public Dictionary<Guid, Branch> Branches { get; } = [];
-        public int Saves { get; private set; }
-
-        public Task<Branch?> FindAsync(Guid id, CancellationToken cancellationToken) =>
-            Task.FromResult(Branches.GetValueOrDefault(id));
-
-        public void Add(Branch branch) => Branches.Add(branch.Id, branch);
-
-        public Task SaveChangesAsync(CancellationToken cancellationToken)
-        {
-            Saves++;
-            return Task.CompletedTask;
-        }
+        Guid ownerId = Guid.CreateVersion7();
+        BranchUpsertItem item = new(Guid.CreateVersion7(), "Mẫu", "Địa chỉ", "0901234567", "06:00", "21:30", true);
+        IBranchRepository repository = Substitute.For<IBranchRepository>();
+        Branch existing = Branch.Create(item.Id, Guid.CreateVersion7(), new("Original", "Address", "0901234567", 10, 106, new(6, 0), new(21, 30), 10, [], null, null, null, true), DateTimeOffset.UtcNow);
+        repository.FindAsync(item.Id, Arg.Any<CancellationToken>()).Returns(existing);
+        UpsertBranchesCommandHandler handler = new(repository, TimeProvider.System);
+        DomainRuleException error = await Assert.ThrowsAsync<DomainRuleException>(() => handler.Handle(new(ownerId, [item with { Lat = 10 }]), TestContext.Current.CancellationToken));
+        Assert.Equal("ownerId", error.Rule);
+        Assert.Equal("Original", existing.Name);
     }
 }

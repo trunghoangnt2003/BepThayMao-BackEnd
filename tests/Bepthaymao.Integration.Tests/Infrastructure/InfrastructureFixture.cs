@@ -1,66 +1,44 @@
-using Bepthaymao.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
-using Npgsql;
+using DotNet.Testcontainers.Builders;
+using DotNet.Testcontainers.Containers;
 using Testcontainers.PostgreSql;
-using Testcontainers.RabbitMq;
 using Testcontainers.Redis;
 
 namespace Bepthaymao.Integration.Tests.Infrastructure;
 
-[CollectionDefinition(Name)]
-public sealed class InfrastructureGroup : ICollectionFixture<InfrastructureFixture>
-{
-    public const string Name = "infrastructure";
-}
-
-/// <summary>One PostgreSQL, Redis and RabbitMQ per test run (D-16 image tags); each test class gets its own database.</summary>
 public sealed class InfrastructureFixture : IAsyncLifetime
 {
-    public const string PostgresImage = "postgres:18.6-alpine";
-
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder(PostgresImage).Build();
+    public Task<string> CreateDatabaseAsync()
+    {
+        Npgsql.NpgsqlConnectionStringBuilder builder = new(PostgresConnectionString)
+        {
+            Database = "test_" + Guid.NewGuid().ToString("N"),
+        };
+        return Task.FromResult(builder.ConnectionString);
+    }
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18.6-alpine").Build();
     private readonly RedisContainer _redis = new RedisBuilder("redis:8.10.3-alpine").Build();
-    private readonly RabbitMqContainer _rabbitMq = new RabbitMqBuilder("rabbitmq:4.4-management-alpine").Build();
+    private readonly IContainer _rabbit = new ContainerBuilder("rabbitmq:4.4-management-alpine")
+        .WithPortBinding(5672, true)
+        .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(5672))
+        .Build();
 
+    public string PostgresConnectionString => _postgres.GetConnectionString();
     public string RedisConnectionString => _redis.GetConnectionString();
-    public string RabbitMqConnectionString => _rabbitMq.GetConnectionString();
+    public string RabbitConnectionString => $"amqp://guest:guest@{_rabbit.Hostname}:{_rabbit.GetMappedPublicPort(5672)}/";
+    public Task StopPostgresAsync() => _postgres.StopAsync(TestContext.Current.CancellationToken);
+    public Task StartPostgresAsync() => _postgres.StartAsync(TestContext.Current.CancellationToken);
 
-    public async ValueTask InitializeAsync() =>
-        await Task.WhenAll(_postgres.StartAsync(), _redis.StartAsync(), _rabbitMq.StartAsync());
+    public async ValueTask InitializeAsync()
+    {
+        await _postgres.StartAsync(TestContext.Current.CancellationToken);
+        await _redis.StartAsync(TestContext.Current.CancellationToken);
+        await _rabbit.StartAsync(TestContext.Current.CancellationToken);
+    }
 
     public async ValueTask DisposeAsync()
     {
-        await _postgres.DisposeAsync();
+        await _rabbit.DisposeAsync();
         await _redis.DisposeAsync();
-        await _rabbitMq.DisposeAsync();
+        await _postgres.DisposeAsync();
     }
-
-    /// <summary>
-    /// Returns a connection string to a fresh database name. With <paramref name="migrate"/> the database is created
-    /// (MigrateAsync creates it) and fully migrated; without it the database does not exist yet.
-    /// </summary>
-    public async Task<string> CreateDatabaseAsync(bool migrate = true)
-    {
-        string connectionString = new NpgsqlConnectionStringBuilder(_postgres.GetConnectionString())
-        {
-            Database = $"test_{Guid.NewGuid():N}",
-        }.ConnectionString;
-        if (migrate)
-        {
-            await using AppDbContext context = CreateContext(connectionString);
-            await context.Database.MigrateAsync(TestContext.Current.CancellationToken);
-        }
-
-        return connectionString;
-    }
-
-    public Dictionary<string, string?> Settings(string postgresConnectionString) => new(StringComparer.Ordinal)
-    {
-        ["ConnectionStrings:Default"] = postgresConnectionString,
-        ["ConnectionStrings:Redis"] = RedisConnectionString,
-        ["ConnectionStrings:RabbitMq"] = RabbitMqConnectionString,
-    };
-
-    public static AppDbContext CreateContext(string connectionString) =>
-        new(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(connectionString).Options);
 }

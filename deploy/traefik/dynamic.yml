@@ -1,51 +1,44 @@
-# Cổng vào dev cùng origin (ADR-0006, D-09, D-11): /api -> API, /admin -> admin, còn lại -> customer.
-# Không có CORS, không dashboard, không router đăng nhập (Phase 1.1).
 http:
   routers:
     api:
-      rule: "PathPrefix(`/api`)"
-      priority: 100
       entryPoints: [web]
+      rule: PathPrefix(`/api`)
+      priority: 100
       middlewares: [secure-headers, body-limit, rate-global]
       service: api
     admin:
-      rule: "PathPrefix(`/admin`)"
-      priority: 50
       entryPoints: [web]
+      rule: PathPrefix(`/admin`)
+      priority: 50
       middlewares: [secure-headers, rate-global]
       service: admin
     customer:
-      rule: "PathPrefix(`/`)"
-      priority: 1
       entryPoints: [web]
+      rule: PathPrefix(`/`)
+      priority: 1
       middlewares: [secure-headers, rate-global]
       service: customer
-
   middlewares:
+    body-limit:
+      buffering:
+        maxRequestBodyBytes: 1048576
     rate-global:
       rateLimit:
         average: 50
         period: 1s
         burst: 100
-    body-limit:
-      buffering:
-        maxRequestBodyBytes: 1048576
     secure-headers:
       headers:
         contentTypeNosniff: true
         frameDeny: true
         referrerPolicy: strict-origin-when-cross-origin
-
   services:
     api:
       loadBalancer:
-        servers:
-          - url: "http://host.docker.internal:5080"
+        servers: [{url: http://host.docker.internal:5080}]
     admin:
       loadBalancer:
-        servers:
-          - url: "http://host.docker.internal:4201"
+        servers: [{url: http://host.docker.internal:4201}]
     customer:
       loadBalancer:
-        servers:
-          - url: "http://host.docker.internal:4200"
+        servers: [{url: http://host.docker.internal:4200}]

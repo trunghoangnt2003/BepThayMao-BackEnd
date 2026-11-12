@@ -1,26 +1,29 @@
-using System.Collections.Concurrent;
-using System.Globalization;
 using Serilog.Core;
 using Serilog.Events;
-using Serilog.Formatting.Compact;
 
 namespace Bepthaymao.Integration.Tests.Infrastructure;
 
 internal sealed class CollectingSink : ILogEventSink
 {
-    private readonly ConcurrentQueue<LogEvent> _events = new();
+    private readonly List<LogEvent> _events = [];
+    private readonly object _gate = new();
 
-    public void Emit(LogEvent logEvent) => _events.Enqueue(logEvent);
-
-    public string Render()
+    public IReadOnlyList<LogEvent> Events
     {
-        using StringWriter writer = new(CultureInfo.InvariantCulture);
-        CompactJsonFormatter formatter = new();
-        foreach (LogEvent logEvent in _events)
+        get
         {
-            formatter.Format(logEvent, writer);
+            lock (_gate)
+            {
+                return _events.ToArray();
+            }
         }
+    }
 
-        return writer.ToString();
+    public void Emit(LogEvent logEvent)
+    {
+        lock (_gate)
+        {
+            _events.Add(logEvent);
+        }
     }
 }

@@ -1,3 +1,4 @@
+using System.Reflection;
 using Bepthaymao.Application.Abstractions.Messaging;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,8 +9,9 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
-        ArgumentNullException.ThrowIfNull(services);
-        services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly, includeInternalTypes: true);
-        return services.AddCqrsHandlers(typeof(DependencyInjection).Assembly);
+        Assembly assembly = typeof(DependencyInjection).Assembly;
+        services.AddCqrsHandlers(assembly);
+        services.AddValidatorsFromAssembly(assembly, includeInternalTypes: true);
+        return services;
     }
 }

@@ -2,49 +2,58 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: admin
-  labels: { app: admin }
 spec:
   replicas: 1
   selector:
-    matchLabels: { app: admin }
+    matchLabels:
+      app: admin
   template:
     metadata:
-      labels: { app: admin }
+      labels:
+        app: admin
     spec:
-      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
-        seccompProfile: { type: RuntimeDefault }
+        runAsUser: 101
+        seccompProfile:
+          type: RuntimeDefault
       containers:
-        - name: admin
-          image: bepthaymao-admin
-          ports:
-            - { name: http, containerPort: 8080 }
-          securityContext:
-            runAsNonRoot: true
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities: { drop: [ALL] }
-            seccompProfile: { type: RuntimeDefault }
-          livenessProbe:
-            httpGet: { path: /healthz, port: http }
-          readinessProbe:
-            httpGet: { path: /healthz, port: http }
-          resources:
-            requests: { cpu: 25m, memory: 32Mi }
-            limits: { cpu: 250m, memory: 128Mi }
-          volumeMounts:
-            # nginx-unprivileged writes pid/temp files under /tmp.
-            - { name: tmp, mountPath: /tmp }
-      volumes:
+      - name: admin
+        image: bepthaymao-admin
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        volumeMounts:
         - name: tmp
-          emptyDir: {}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: admin
-spec:
-  selector: { app: admin }
-  ports:
-    - { name: http, port: 8080, targetPort: http }
+          mountPath: /tmp
+        - name: nginx-cache
+          mountPath: /var/cache/nginx
+        - name: nginx-run
+          mountPath: /var/run
+        ports:
+        - containerPort: 8080
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: nginx-cache
+        emptyDir: {}
+      - name: nginx-run
+        emptyDir: {}

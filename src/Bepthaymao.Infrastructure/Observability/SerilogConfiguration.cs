@@ -1,20 +1,19 @@
-using Microsoft.Extensions.Configuration;
 using Serilog;
 using Serilog.Formatting.Compact;
-using Serilog.Events;
+using Microsoft.Extensions.Configuration;
 
 namespace Bepthaymao.Infrastructure.Observability;
 
 public static class SerilogConfiguration
 {
-    public static LoggerConfiguration ConfigureBepthaymao(this LoggerConfiguration configuration,
-        IConfiguration appConfiguration, string applicationName)
+    public static LoggerConfiguration ConfigureBepthaymao(
+        this LoggerConfiguration configuration,
+        IConfiguration appConfiguration,
+        string applicationName)
     {
-        ArgumentNullException.ThrowIfNull(configuration);
-        ArgumentNullException.ThrowIfNull(appConfiguration);
-        ArgumentException.ThrowIfNullOrWhiteSpace(applicationName);
-        return configuration.MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
+        return configuration
             .ReadFrom.Configuration(appConfiguration)
+            .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
             .Enrich.FromLogContext()
             .Enrich.WithProperty("Application", applicationName)
             .WriteTo.Console(new CompactJsonFormatter());

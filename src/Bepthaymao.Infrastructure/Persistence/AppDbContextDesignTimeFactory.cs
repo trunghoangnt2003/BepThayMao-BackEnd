@@ -5,12 +5,7 @@ namespace Bepthaymao.Infrastructure.Persistence;
 
 public sealed class AppDbContextDesignTimeFactory : IDesignTimeDbContextFactory<AppDbContext>
 {
-    public AppDbContext CreateDbContext(string[] args)
-    {
-        string connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Default")
-            ?? "Host=127.0.0.1;Port=5432;Database=bepthaymao";
-        DbContextOptions<AppDbContext> options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql(connectionString).Options;
-        return new AppDbContext(options);
-    }
+    public AppDbContext CreateDbContext(string[] args) => new(new DbContextOptionsBuilder<AppDbContext>()
+        .UseNpgsql(Environment.GetEnvironmentVariable("ConnectionStrings__Default") ?? "Host=localhost;Database=bepthaymao;Username=postgres")
+        .UseSnakeCaseNamingConvention().Options, new SystemDataScope());
 }

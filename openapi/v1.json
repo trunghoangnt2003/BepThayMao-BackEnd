@@ -20,8 +20,8 @@
         "tags": [
           "Branches"
         ],
-        "summary": "Danh sách cơ sở đang hoạt động",
-        "description": "Chỉ trả thông tin công khai tối thiểu; không lộ tọa độ, cấu hình ngân hàng, SePay, Zalo hay cờ hoạt động.",
+        "summary": "Danh sách cơ sở đang hoạt động (công khai)",
+        "description": "Danh sách cơ sở đang hoạt động; chỉ trả dữ liệu công khai, không yêu cầu đăng nhập.",
         "operationId": "listPublicBranches",
         "responses": {
           "200": {
@@ -59,15 +59,943 @@
           }
         }
       }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Đăng nhập nhân sự",
+        "description": "Đăng nhập bằng tên đăng nhập và mật khẩu, nhận JWT và cookie refresh HttpOnly.",
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenPair"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Làm mới phiên đăng nhập",
+        "description": "Xoay vòng refresh cookie và phát JWT với quyền hiện tại.",
+        "operationId": "refreshToken",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenPair"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Đăng xuất mọi phiên",
+        "description": "Thu hồi mọi refresh token của tài khoản và xóa cookie; không có cookie vẫn trả 204.",
+        "operationId": "logout",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/owner/branches": {
+      "get": {
+        "tags": [
+          "Owner"
+        ],
+        "summary": "Danh sách cơ sở của chủ sở hữu",
+        "description": "Chỉ trả cơ sở của Chủ sở hữu đang đăng nhập; Quản lý gọi /owner/* nhận 403.",
+        "operationId": "listOwnerBranches",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BranchResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Owner"
+        ],
+        "summary": "Tạo cơ sở kèm tài khoản quản lý",
+        "description": "Tạo cơ sở kèm tài khoản quản lý trong một transaction; trả 409 khi tên đăng nhập trùng.",
+        "operationId": "createOwnerBranch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBranchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BranchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ]
+      }
+    },
+    "/api/v1/owner/branches/{branchId}": {
+      "get": {
+        "tags": [
+          "Owner"
+        ],
+        "summary": "Xem thông tin một cơ sở của chủ sở hữu",
+        "description": "Trả 404 khi cơ sở không tồn tại hoặc thuộc Chủ sở hữu khác.",
+        "operationId": "getOwnerBranch",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BranchResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Owner"
+        ],
+        "summary": "Sửa thông tin cơ sở, bật hoặc tắt nhận đơn (isActive)",
+        "description": "Chủ sở hữu sửa mọi trường và bật hoặc tắt nhận đơn; tắt cơ sở không xóa cơ sở hay tài khoản quản lý. Trả 404 khi cơ sở thuộc Chủ sở hữu khác.",
+        "operationId": "updateOwnerBranch",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BranchOwnerSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BranchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ]
+      }
+    },
+    "/api/v1/owner/branches/{branchId}/manager/reset-password": {
+      "post": {
+        "tags": [
+          "Owner"
+        ],
+        "summary": "Đặt lại mật khẩu tài khoản quản lý của cơ sở",
+        "description": "Đặt mật khẩu mới cho quản lý và thu hồi mọi refresh token của họ (D-05); trả 404 khi cơ sở không có quản lý hoặc thuộc Chủ sở hữu khác.",
+        "operationId": "resetBranchManagerPassword",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetManagerPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ]
+      }
+    },
+    "/api/v1/manager/branch/settings": {
+      "get": {
+        "tags": [
+          "Manager"
+        ],
+        "summary": "Thông số của cơ sở mình",
+        "description": "Chỉ vai trò BranchManager; cơ sở lấy từ claim branch_id, không nhận mã cơ sở trong đường dẫn hay thân.",
+        "operationId": "getManagerBranchSettings",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagerBranchView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Manager"
+        ],
+        "summary": "Cập nhật thông số cơ sở mình",
+        "description": "Cập nhật thông số cơ sở mình; trường chỉ Chủ sở hữu được sửa gửi lên bị 400. Không nhận mã cơ sở; chỉ vai trò BranchManager được gọi.",
+        "operationId": "updateManagerBranchSettings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BranchSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagerBranchView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ]
+      }
     }
   },
   "components": {
     "schemas": {
+      "BranchOwnerSettingsRequest": {
+        "required": [
+          "name",
+          "address",
+          "phone",
+          "lat",
+          "lng",
+          "openTime",
+          "closeTime",
+          "abandonedThresholdMinutes",
+          "zaloRecipientIds",
+          "isActive"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "lat": {
+            "type": "number",
+            "format": "double"
+          },
+          "lng": {
+            "type": "number",
+            "format": "double"
+          },
+          "openTime": {
+            "type": "string"
+          },
+          "closeTime": {
+            "type": "string"
+          },
+          "abandonedThresholdMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "zaloRecipientIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "bankAccountNo": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bankCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sepayAccountRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "BranchResponse": {
+        "required": [
+          "id",
+          "name",
+          "address",
+          "lat",
+          "lng",
+          "phone",
+          "isActive",
+          "openTime",
+          "closeTime",
+          "abandonedThresholdMinutes",
+          "zaloRecipientIds",
+          "bankAccountNo",
+          "bankCode",
+          "sepayAccountRef",
+          "managerIdentifier"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "lat": {
+            "type": "number",
+            "format": "double"
+          },
+          "lng": {
+            "type": "number",
+            "format": "double"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "openTime": {
+            "type": "string"
+          },
+          "closeTime": {
+            "type": "string"
+          },
+          "abandonedThresholdMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "zaloRecipientIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "bankAccountNo": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bankCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sepayAccountRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "managerIdentifier": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "BranchSettingsRequest": {
+        "required": [
+          "phone",
+          "openTime",
+          "closeTime",
+          "abandonedThresholdMinutes",
+          "zaloRecipientIds"
+        ],
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string"
+          },
+          "openTime": {
+            "type": "string"
+          },
+          "closeTime": {
+            "type": "string"
+          },
+          "abandonedThresholdMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "zaloRecipientIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "description": "Đúng năm trường Quản lý được sửa; thành viên khác (name, isActive, lat, ngân hàng...) bị từ chối bằng 400."
+      },
+      "CreateBranchRequest": {
+        "required": [
+          "branch",
+          "manager"
+        ],
+        "type": "object",
+        "properties": {
+          "branch": {
+            "$ref": "#/components/schemas/BranchOwnerSettingsRequest"
+          },
+          "manager": {
+            "$ref": "#/components/schemas/ManagerAccountRequest"
+          }
+        },
+        "additionalProperties": false
+      },
+      "LoginRequest": {
+        "required": [
+          "identifier",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "identifier": {
+            "maxLength": 256,
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 128,
+            "minLength": 10,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ManagerAccountRequest": {
+        "required": [
+          "identifier",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "identifier": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ManagerBranchView": {
+        "required": [
+          "phone",
+          "openTime",
+          "closeTime",
+          "abandonedThresholdMinutes",
+          "zaloRecipientIds",
+          "name",
+          "address",
+          "isActive",
+          "bankAccountNo",
+          "bankCode",
+          "sepayAccountRef"
+        ],
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string"
+          },
+          "openTime": {
+            "type": "string"
+          },
+          "closeTime": {
+            "type": "string"
+          },
+          "abandonedThresholdMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "zaloRecipientIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "bankAccountNo": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bankCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sepayAccountRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "ProblemDetails": {
         "required": [
-          "correlationId",
-          "title",
-          "status"
+          "correlationId"
         ],
         "type": "object",
         "properties": {
@@ -78,10 +1006,16 @@
             ]
           },
           "title": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "status": {
-            "type": "integer",
+            "type": [
+              "null",
+              "integer"
+            ],
             "format": "int32"
           },
           "detail": {
@@ -129,20 +1063,80 @@
             "type": "string"
           },
           "openTime": {
-            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "pattern": "^\\d{2}:\\d{2}$",
             "type": "string"
           },
           "closeTime": {
-            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "pattern": "^\\d{2}:\\d{2}$",
             "type": "string"
           }
         }
+      },
+      "ResetManagerPasswordRequest": {
+        "required": [
+          "newPassword"
+        ],
+        "type": "object",
+        "properties": {
+          "newPassword": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TokenPair": {
+        "required": [
+          "accessToken",
+          "expiresIn",
+          "role",
+          "identifier"
+        ],
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "expiresIn": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          },
+          "identifier": {
+            "type": "string"
+          }
+        }
+      },
+      "UserRole": {
+        "enum": [
+          "Owner",
+          "BranchManager",
+          "Customer"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "description": "JWT access token lấy từ /api/v1/auth/login.",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
       }
     }
   },
   "tags": [
     {
       "name": "Branches"
+    },
+    {
+      "name": "Auth"
+    },
+    {
+      "name": "Owner"
+    },
+    {
+      "name": "Manager"
     }
   ]
 }

@@ -8,11 +8,13 @@ internal static class ForwardedHeadersSetup
     {
         services.Configure<ForwardedHeadersOptions>(options =>
         {
-            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
+            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor
+                | ForwardedHeaders.XForwardedProto
+                | ForwardedHeaders.XForwardedHost;
             options.ForwardLimit = 1;
-            foreach (string network in configuration.GetSection("ReverseProxy:KnownNetworks").Get<string[]>() ?? [])
+            foreach (string cidr in configuration.GetSection("ReverseProxy:KnownNetworks").Get<string[]>() ?? [])
             {
-                options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(network));
+                options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(cidr));
             }
         });
         return services;

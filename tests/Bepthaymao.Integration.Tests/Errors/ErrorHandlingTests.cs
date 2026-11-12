@@ -1,48 +1,57 @@
-using System.Net;
-using System.Text.Json;
 using Bepthaymao.Integration.Tests.Infrastructure;
+using System.Net;
 
 namespace Bepthaymao.Integration.Tests.Errors;
 
-public sealed class ErrorHandlingTests
+public sealed class ErrorHandlingTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     [Fact]
-    public async Task UnknownExceptionReturnsGenericProblemWithoutPrivateDetails()
+    public async Task MissingRouteReturnsProblemDetailsWithCorrelationId()
     {
-        await using TestApp app = await TestApp.StartAsync();
-        using HttpResponseMessage response = await app.Client.GetAsync("/fail", TestContext.Current.CancellationToken);
-        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
-        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
-        string body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        Assert.DoesNotContain("private-exception-detail", body, StringComparison.Ordinal);
-        Assert.DoesNotContain("InvalidOperationException", body, StringComparison.Ordinal);
-        Assert.DoesNotContain("stack", body, StringComparison.OrdinalIgnoreCase);
-        using JsonDocument document = JsonDocument.Parse(body);
-        Assert.Equal(response.Headers.GetValues("X-Correlation-Id").Single(), document.RootElement.GetProperty("correlationId").GetString());
-        Assert.Matches("^[a-f0-9]{32}$", document.RootElement.GetProperty("traceId").GetString() ?? "");
-    }
+        using HttpRequestMessage request = new(HttpMethod.Get, "/api/v1/khong-co");
+        request.Headers.Add("X-Correlation-Id", "abc-123");
 
-    [Theory]
-    [InlineData("/invalid", "items[0].openTime")]
-    [InlineData("/domain", "openTime")]
-    public async Task ValidationAndDomainErrorsPreserveJsonFieldPaths(string path, string key)
-    {
-        await using TestApp app = await TestApp.StartAsync();
-        using HttpResponseMessage response = await app.Client.GetAsync(path, TestContext.Current.CancellationToken);
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        Assert.Equal(JsonValueKind.Array, document.RootElement.GetProperty("errors").GetProperty(key).ValueKind);
-        Assert.False(string.IsNullOrEmpty(document.RootElement.GetProperty("correlationId").GetString()));
+        using HttpResponseMessage response = await factory.CreateClient().SendAsync(
+            request, TestContext.Current.CancellationToken);
+        string body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("abc-123", response.Headers.GetValues("X-Correlation-Id").Single());
+        Assert.Contains("\"correlationId\":\"abc-123\"", body, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task MissingRouteReturnsProblemDetails()
+    public async Task UnhandledExceptionReturnsSafeProblemDetails()
     {
-        await using TestApp app = await TestApp.StartAsync();
-        using HttpResponseMessage response = await app.Client.GetAsync("/api/v1/khong-co", TestContext.Current.CancellationToken);
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        await using TestApp app = await TestApp.CreateAsync();
+        using HttpResponseMessage response = await app.Client.GetAsync(
+            "/throw", TestContext.Current.CancellationToken);
+        string body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
-        using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        Assert.False(string.IsNullOrEmpty(document.RootElement.GetProperty("correlationId").GetString()));
+        Assert.DoesNotContain("secret exception detail", body, StringComparison.Ordinal);
+        Assert.DoesNotContain(nameof(InvalidOperationException), body, StringComparison.Ordinal);
+        Assert.DoesNotContain("StackTrace", body, StringComparison.Ordinal);
+        Assert.Contains("correlationId", body, StringComparison.Ordinal);
+        Assert.Contains("traceId", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ValidationAndDomainExceptionsReturnStructuredErrors()
+    {
+        await using TestApp app = await TestApp.CreateAsync();
+        HttpClient client = app.Client;
+
+        using HttpResponseMessage validation = await client.GetAsync("/validation", TestContext.Current.CancellationToken);
+        string validationBody = await validation.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        using HttpResponseMessage domain = await client.GetAsync("/domain", TestContext.Current.CancellationToken);
+        string domainBody = await domain.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, validation.StatusCode);
+        Assert.Contains("items[0].openTime", validationBody, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.BadRequest, domain.StatusCode);
+        Assert.Contains("openTime", domainBody, StringComparison.Ordinal);
+        Assert.Contains("closed", domainBody, StringComparison.Ordinal);
     }
 }

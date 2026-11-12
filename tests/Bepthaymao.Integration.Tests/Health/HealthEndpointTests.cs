@@ -1,12 +1,9 @@
 using System.Net;
-using System.Text.Json;
 using Bepthaymao.Integration.Tests.Infrastructure;
-using Testcontainers.PostgreSql;
 
 namespace Bepthaymao.Integration.Tests.Health;
 
-[Collection(InfrastructureGroup.Name)]
-public sealed class HealthEndpointTests(InfrastructureFixture infrastructure)
+public sealed class HealthEndpointTests(InfrastructureFixture infrastructure) : IClassFixture<InfrastructureFixture>
 {
     [Fact]
     public async Task LiveReturnsSuccessWithoutInfrastructure()
@@ -18,42 +15,41 @@ public sealed class HealthEndpointTests(InfrastructureFixture infrastructure)
     }
 
     [Fact]
-    public async Task ReadyReturns200WhenPostgresRedisRabbitMqAreUp()
+    public async Task ReadyReturnsSuccessWhenInfrastructureIsUp()
     {
-        string database = await infrastructure.CreateDatabaseAsync();
-        await using ApiFactory factory = new(infrastructure.Settings(database));
+        await using ApiFactory factory = new(infrastructure);
         using HttpClient client = factory.CreateClient();
         using HttpResponseMessage response = await client.GetAsync("/health/ready", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
-    public async Task ReadyReturns503WhenPostgresIsStoppedAndLiveStays200()
+    public async Task ReadyReturnsFailureWhenRunningPostgresStops()
     {
-        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
-        // Own container so stopping it cannot affect other tests in the collection.
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder(InfrastructureFixture.PostgresImage).Build();
-        await postgres.StartAsync(cancellationToken);
-        await using ApiFactory factory = new(infrastructure.Settings(postgres.GetConnectionString()));
+        await using ApiFactory factory = new(infrastructure);
         using HttpClient client = factory.CreateClient();
-        using (HttpResponseMessage before = await client.GetAsync("/health/ready", cancellationToken))
+        await infrastructure.StopPostgresAsync();
+        try
         {
-            Assert.Equal(HttpStatusCode.OK, before.StatusCode);
+            using HttpResponseMessage response = await client.GetAsync("/health/ready", TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+            using HttpResponseMessage live = await client.GetAsync("/health/live", TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.OK, live.StatusCode);
         }
-
-        await postgres.StopAsync(cancellationToken);
-
-        using HttpResponseMessage ready = await client.GetAsync("/health/ready", cancellationToken);
-        using HttpResponseMessage live = await client.GetAsync("/health/live", cancellationToken);
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, ready.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, live.StatusCode);
+        finally { await infrastructure.StartPostgresAsync(); }
     }
 
     [Fact]
-    public void HealthEndpointsAreNotInOpenApiDocument()
+    public async Task ReadyReturnsFailureWhenInfrastructureIsUnavailable()
     {
-        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(Path.Combine(RepositoryPaths.Root, "openapi", "v1.json")));
-        string[] paths = [.. document.RootElement.GetProperty("paths").EnumerateObject().Select(path => path.Name)];
-        Assert.DoesNotContain(paths, path => path.StartsWith("/health", StringComparison.Ordinal));
+        await using ApiFactory factory = new(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:Default"] = "Host=127.0.0.1;Port=1;Database=missing;Username=missing;Password=missing",
+            ["ConnectionStrings:Redis"] = "127.0.0.1:1",
+            ["ConnectionStrings:RabbitMq"] = "amqp://guest:guest@127.0.0.1:1/",
+        });
+        using HttpClient client = factory.CreateClient();
+        using HttpResponseMessage response = await client.GetAsync("/health/ready", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
     }
 }

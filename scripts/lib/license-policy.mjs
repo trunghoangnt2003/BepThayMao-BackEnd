@@ -1,37 +1,29 @@
-// Pure SPDX allowlist check. Copied (not imported) in the frontend repo: each repo is self-contained.
-
-function validateExceptions(exceptions) {
-  for (const exception of exceptions) {
-    if (!/^.+@\d[^@]*$/.test(exception.package ?? '')) {
-      throw new Error(`Ngoại lệ "${exception.package}" phải ghi đúng tên@phiên bản, không theo dải.`);
-    }
-    if ((exception.reason ?? '').trim().length < 10) {
-      throw new Error(`Ngoại lệ "${exception.package}" thiếu lý do (tối thiểu 10 ký tự).`);
-    }
+export function evaluatePolicy(packages, policy) {
+  for (const exception of policy.exceptions) {
+    if (!exception.package.includes('@') || exception.reason.trim().length < 10) throw new Error('License exception requires exact package@version and a substantive reason.');
   }
-}
-
-function isAllowed(expression, allow) {
-  const normalized = expression.replace(/[()]/g, ' ').trim();
-  return normalized.split(/\s+OR\s+/).some((alternative) =>
-    alternative.split(/\s+AND\s+/).every((part) => allow.has(part.trim())));
-}
-
-/**
- * @param {{name: string, version: string, license?: string, private?: boolean}[]} packages
- * @param {{allow: string[], exceptions: {package: string, license: string, reason: string}[]}} policy
- * @returns {{package: string, license: string}[]} violations
- */
-export function evaluatePolicy(packages, policy, { rootName } = {}) {
-  validateExceptions(policy.exceptions ?? []);
-  const allow = new Set(policy.allow);
-  const excepted = new Set((policy.exceptions ?? []).map((exception) => exception.package));
-  const violations = [];
-  for (const item of packages) {
-    if (item.private && item.name === rootName) continue;
-    const id = `${item.name}@${item.version}`;
-    if (excepted.has(id)) continue;
-    if (!item.license || !isAllowed(item.license, allow)) violations.push({ package: id, license: item.license ?? '(không có)' });
+  function allowed(expression) {
+    const tokens = expression.match(/[A-Za-z0-9.+:-]+|\(|\)/g) ?? [];
+    let index = 0;
+    const primary = () => {
+      if (tokens[index] === '(') { index++; const value = disjunction(); if (tokens[index++] !== ')') throw new Error('Invalid SPDX expression.'); return value; }
+      return policy.allow.includes(tokens[index++]);
+    };
+    const conjunction = () => {
+      let value = primary();
+      while (tokens[index] === 'AND') { index++; const next = primary(); value = value && next; }
+      return value;
+    };
+    const disjunction = () => {
+      let value = conjunction();
+      while (tokens[index] === 'OR') { index++; const next = conjunction(); value = value || next; }
+      return value;
+    };
+    const result = disjunction();
+    return result && index === tokens.length;
   }
-  return violations;
+  return packages.filter((item) => {
+    if (policy.exceptions.some((exception) => exception.package === item.package && exception.license === item.license)) return false;
+    return !allowed(item.license ?? 'UNKNOWN');
+  });
 }

@@ -7,8 +7,8 @@
     <Project Path="src/Bepthaymao.Worker/Bepthaymao.Worker.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/Bepthaymao.Application.Tests/Bepthaymao.Application.Tests.csproj" />
     <Project Path="tests/Bepthaymao.Architecture.Tests/Bepthaymao.Architecture.Tests.csproj" />
+    <Project Path="tests/Bepthaymao.Application.Tests/Bepthaymao.Application.Tests.csproj" />
     <Project Path="tests/Bepthaymao.Domain.Tests/Bepthaymao.Domain.Tests.csproj" />
     <Project Path="tests/Bepthaymao.Integration.Tests/Bepthaymao.Integration.Tests.csproj" />
   </Folder>

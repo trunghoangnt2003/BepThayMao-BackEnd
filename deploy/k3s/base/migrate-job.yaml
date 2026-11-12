@@ -1,35 +1,46 @@
-# One-off migration with the api image; the API never migrates on startup (multiple replicas).
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: db-migrate
+  name: migrate
 spec:
-  backoffLimit: 2
+  backoffLimit: 1
   template:
     spec:
-      restartPolicy: Never
-      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
-        seccompProfile: { type: RuntimeDefault }
+        runAsUser: 1654
+        seccompProfile:
+          type: RuntimeDefault
       containers:
-        - name: migrate
-          image: bepthaymao-api
-          args: ["db", "migrate"]
-          envFrom:
-            - configMapRef: { name: bepthaymao-config }
-            - secretRef: { name: bepthaymao-api-secrets }
-          securityContext:
-            runAsNonRoot: true
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities: { drop: [ALL] }
-            seccompProfile: { type: RuntimeDefault }
-          resources:
-            requests: { cpu: 50m, memory: 128Mi }
-            limits: { cpu: 500m, memory: 256Mi }
-          volumeMounts:
-            - { name: tmp, mountPath: /tmp }
-      volumes:
+      - name: api
+        image: bepthaymao-api
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        volumeMounts:
         - name: tmp
-          emptyDir: {}
+          mountPath: /tmp
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: bepthaymao-config
+        - secretRef:
+            name: bepthaymao-api-secrets
+        args:
+        - db
+        - migrate
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      restartPolicy: Never

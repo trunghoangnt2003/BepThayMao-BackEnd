@@ -9,6 +9,5 @@
     <PackageReference Include="coverlet.MTP" />
     <PackageReference Include="AwesomeAssertions" />
     <Using Include="Xunit" />
-    <Using Include="AwesomeAssertions" />
   </ItemGroup>
 </Project>

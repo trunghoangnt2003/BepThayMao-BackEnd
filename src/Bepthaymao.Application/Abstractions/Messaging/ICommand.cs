@@ -1,3 +1,5 @@
 namespace Bepthaymao.Application.Abstractions.Messaging;
 
-public interface ICommand<TResponse>;
+public interface ICommand<TResponse>
+{
+}
