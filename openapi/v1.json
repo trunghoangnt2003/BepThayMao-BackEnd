@@ -231,7 +231,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ]
       },
       "post": {
         "tags": [
@@ -301,7 +306,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ]
       }
     },
     "/api/v1/owner/branches/{branchId}": {
@@ -365,7 +375,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ]
       }
     }
   },
@@ -689,6 +704,14 @@
           "BranchManager",
           "Customer"
         ]
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "description": "JWT access token lấy từ /api/v1/auth/login.",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
       }
     }
   },

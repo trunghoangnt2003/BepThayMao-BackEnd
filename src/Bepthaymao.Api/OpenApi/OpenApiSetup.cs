@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Asp.Versioning;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.OpenApi;
 
@@ -7,6 +8,8 @@ namespace Bepthaymao.Api.OpenApi;
 
 internal static class OpenApiSetup
 {
+    private const string _bearerScheme = "bearerAuth";
+
     public static IServiceCollection AddApiOpenApi(this IServiceCollection services)
     {
         services.ConfigureHttpJsonOptions(options =>
@@ -38,6 +41,29 @@ internal static class OpenApiSetup
                     },
                 };
                 document.Servers = [new OpenApiServer { Url = "/" }];
+                document.Components ??= new OpenApiComponents();
+                document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>(StringComparer.Ordinal);
+                document.Components.SecuritySchemes[_bearerScheme] = new OpenApiSecurityScheme
+                {
+                    Type = SecuritySchemeType.Http,
+                    Scheme = "bearer",
+                    BearerFormat = "JWT",
+                    Description = "JWT access token lấy từ /api/v1/auth/login.",
+                };
+                return Task.CompletedTask;
+            });
+            options.Document.AddOperationTransformer((operation, context, _) =>
+            {
+                IList<object> metadata = context.Description.ActionDescriptor.EndpointMetadata;
+                if (metadata.OfType<IAuthorizeData>().Any() && !metadata.OfType<IAllowAnonymous>().Any())
+                {
+                    operation.Security ??= [];
+                    operation.Security.Add(new OpenApiSecurityRequirement
+                    {
+                        [new OpenApiSecuritySchemeReference(_bearerScheme, context.Document)] = [],
+                    });
+                }
+
                 return Task.CompletedTask;
             });
             options.Document.AddSchemaTransformer((schema, context, _) =>
