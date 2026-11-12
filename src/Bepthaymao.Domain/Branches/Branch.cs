@@ -66,6 +66,10 @@ public sealed partial class Branch
         return changed;
     }
 
+    // Chỗ giữ chữ ký để test RED biên dịch được; hiện thực thật ở commit feat kế tiếp.
+    public bool ApplyManagerSettings(string phone, TimeOnly openTime, TimeOnly closeTime, int abandonedThresholdMinutes,
+        IReadOnlyList<string> zaloRecipientIds) => Phone.Length < 0;
+
     private static string? NormalizeOptional(string? value, int maxLength, string field)
     {
         value = value?.Trim();
