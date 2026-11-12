@@ -4,6 +4,7 @@ using Bepthaymao.Application.Auth;
 using Bepthaymao.Infrastructure.Persistence;
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Bepthaymao.Infrastructure.Identity;
 
@@ -62,12 +63,14 @@ internal sealed class RefreshTokenService(AppDbContext db, TimeProvider clock, I
 
     public async Task RevokeAllForUserAsync(Guid userId, CancellationToken cancellationToken)
     {
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        // Handler đã mở transaction (đặt lại mật khẩu + thu hồi phiên) thì tham gia nó, không mở transaction lồng.
+        await using IDbContextTransaction? own = db.Database.CurrentTransaction is null
+            ? await db.Database.BeginTransactionAsync(cancellationToken) : null;
         await LockUser(userId, cancellationToken);
         DateTimeOffset now = clock.GetUtcNow();
         await db.RefreshTokens.Where(value => value.UserId == userId && value.RevokedAt == null)
             .ExecuteUpdateAsync(update => update.SetProperty(value => value.RevokedAt, now), cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+        if (own is not null) await own.CommitAsync(cancellationToken);
     }
 
     private async Task LockUser(Guid userId, CancellationToken cancellationToken)

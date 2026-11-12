@@ -30,6 +30,32 @@ internal sealed class ManagerAccountService(UserManager<AppUser> users, TimeProv
         return identifier;
     }
 
+    public async Task<Guid> ResetPasswordAsync(Guid branchId, string newPassword, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        AppUser user = await users.Users.SingleOrDefaultAsync(value => value.BranchId == branchId, cancellationToken)
+            ?? throw new NotFoundException();
+        // Gỡ rồi đặt mật khẩu là hai lần cập nhật: handler bọc chúng trong một transaction nên lỗi giữa chừng rollback,
+        // quản lý không bao giờ mất mật khẩu.
+        IdentityResult removed = await users.RemovePasswordAsync(user);
+        if (!removed.Succeeded)
+            throw new InvalidOperationException("Không gỡ được mật khẩu cũ: " + string.Join(", ", removed.Errors.Select(error => error.Code)));
+        IdentityResult added = await users.AddPasswordAsync(user, newPassword);
+        if (!added.Succeeded) throw TranslatePassword(added);
+        IdentityResult stamped = await users.UpdateSecurityStampAsync(user);
+        if (!stamped.Succeeded)
+            throw new InvalidOperationException("Không đổi được security stamp: " + string.Join(", ", stamped.Errors.Select(error => error.Code)));
+        return user.Id;
+    }
+
+    private static Exception TranslatePassword(IdentityResult result)
+    {
+        string[] codes = [.. result.Errors.Select(error => error.Code)];
+        return codes.Any(code => code.StartsWith("Password", StringComparison.Ordinal))
+            ? new ValidationException(new Dictionary<string, string[]> { ["newPassword"] = ["Mật khẩu phải từ 10 đến 128 ký tự."] })
+            : new InvalidOperationException("Không đặt được mật khẩu mới: " + string.Join(", ", codes));
+    }
+
     private static Exception Translate(IdentityResult result)
     {
         string[] codes = [.. result.Errors.Select(error => error.Code)];

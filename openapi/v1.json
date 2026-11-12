@@ -470,6 +470,88 @@
         ]
       }
     },
+    "/api/v1/owner/branches/{branchId}/manager/reset-password": {
+      "post": {
+        "tags": [
+          "Owner"
+        ],
+        "summary": "Đặt lại mật khẩu tài khoản quản lý của cơ sở",
+        "description": "Đặt mật khẩu mới cho quản lý và thu hồi mọi refresh token của họ (D-05); trả 404 khi cơ sở không có quản lý hoặc thuộc Chủ sở hữu khác.",
+        "operationId": "resetBranchManagerPassword",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetManagerPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ]
+      }
+    },
     "/api/v1/manager/branch/settings": {
       "get": {
         "tags": [
@@ -989,6 +1071,18 @@
             "type": "string"
           }
         }
+      },
+      "ResetManagerPasswordRequest": {
+        "required": [
+          "newPassword"
+        ],
+        "type": "object",
+        "properties": {
+          "newPassword": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
       },
       "TokenPair": {
         "required": [

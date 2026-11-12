@@ -6,6 +6,7 @@ using Bepthaymao.Application.Branches.Owner;
 using Bepthaymao.Application.Branches.Owner.CreateOwnerBranch;
 using Bepthaymao.Application.Branches.Owner.GetOwnerBranch;
 using Bepthaymao.Application.Branches.Owner.ListOwnerBranches;
+using Bepthaymao.Application.Branches.Owner.ResetManagerPassword;
 using Bepthaymao.Application.Branches.Owner.UpdateOwnerBranch;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
@@ -36,6 +37,9 @@ public sealed record BranchOwnerSettingsRequest(
 public sealed record ManagerAccountRequest([property: JsonRequired] string Identifier, [property: JsonRequired] string Password);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record ResetManagerPasswordRequest([property: JsonRequired] string NewPassword);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record CreateBranchRequest([property: JsonRequired] BranchOwnerSettingsRequest Branch,
     [property: JsonRequired] ManagerAccountRequest Manager);
 
@@ -62,6 +66,15 @@ public static class OwnerBranchesEndpoints
             TypedResults.Ok(await handler.Handle(new(branchId, request.ToData()), cancellationToken)))
             .WithName("updateOwnerBranch").WithSummary("Sửa thông tin cơ sở, bật hoặc tắt nhận đơn (isActive)")
             .WithDescription("Chủ sở hữu sửa mọi trường và bật hoặc tắt nhận đơn; tắt cơ sở không xóa cơ sở hay tài khoản quản lý. Trả 404 khi cơ sở thuộc Chủ sở hữu khác.")
+            .ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden).ProducesProblem(StatusCodes.Status404NotFound);
+        group.MapPost("/{branchId:guid}/manager/reset-password", async Task<NoContent> (Guid branchId, ResetManagerPasswordRequest request,
+            [FromServices] ICommandHandler<ResetManagerPasswordCommand, bool> handler, CancellationToken cancellationToken) =>
+        {
+            await handler.Handle(new(branchId, request.NewPassword), cancellationToken);
+            return TypedResults.NoContent();
+        }).WithName("resetBranchManagerPassword").WithSummary("Đặt lại mật khẩu tài khoản quản lý của cơ sở")
+            .WithDescription("Đặt mật khẩu mới cho quản lý và thu hồi mọi refresh token của họ (D-05); trả 404 khi cơ sở không có quản lý hoặc thuộc Chủ sở hữu khác.")
             .ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden).ProducesProblem(StatusCodes.Status404NotFound);
         group.MapPost("/", async Task<Created<BranchResponse>> (CreateBranchRequest request,
