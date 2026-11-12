@@ -30,6 +30,8 @@ export function buildApiEnv(env) {
   return {
     ...process.env,
     ASPNETCORE_ENVIRONMENT: 'Development',
+    // CLI `db` dùng generic host: cần DOTNET_ENVIRONMENT để seed cơ sở và thực đơn mẫu ở Development.
+    DOTNET_ENVIRONMENT: 'Development',
     AllowedHosts: process.env.AllowedHosts ?? 'localhost;127.0.0.1;host.docker.internal',
     ConnectionStrings__Default: `Host=127.0.0.1;Port=${env.POSTGRES_PORT};Database=${env.POSTGRES_DB};Username=${env.POSTGRES_USER};Password=${env.POSTGRES_PASSWORD}`,
     ConnectionStrings__Redis: `127.0.0.1:${env.REDIS_PORT},password=${env.REDIS_PASSWORD}`,

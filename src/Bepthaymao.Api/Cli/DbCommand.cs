@@ -26,6 +26,9 @@ internal static class DbCommand
         {
             HostApplicationBuilder builder = Host.CreateApplicationBuilder();
             builder.Logging.ClearProviders();
+            // Host CLI chỉ resolve SeedRunner và AppDbContext; không kiểm toàn bộ DI khi build (handler đăng nhập cần
+            // IAccessTokenIssuer chỉ có trong API web), nhưng vẫn kiểm phạm vi scoped.
+            builder.ConfigureContainer(new DefaultServiceProviderFactory(new ServiceProviderOptions { ValidateOnBuild = false, ValidateScopes = true }));
             builder.Services.AddApplication().AddInfrastructure(builder.Configuration);
             builder.Services.AddScoped<IDataScope, SystemDataScope>();
             builder.Services.AddScoped<SeedRunner>();
