@@ -79,6 +79,15 @@ public sealed class OwnerBranchQueryTests(InfrastructureFixture infrastructure) 
             json.RootElement[0].EnumerateObject().Select(item => item.Name).Order(StringComparer.Ordinal));
     }
 
+    [Fact]
+    public async Task FindByKeyDoesNotBypassScope()
+    {
+        await using AuthWorld world = await AuthWorld.CreateAsync(infrastructure);
+        await using AppDbContext owner2 = world.OpenContext(new TestDataScope(false, world.Owner2Id, null));
+        Assert.Null(await owner2.Branches.FindAsync([world.BranchA1], TestContext.Current.CancellationToken));
+        Assert.NotNull(await owner2.Branches.FindAsync([world.BranchB1], TestContext.Current.CancellationToken));
+    }
+
     private static async Task<Guid[]> IdsAsync(AppDbContext db) =>
         await db.Branches.AsNoTracking().Select(branch => branch.Id).OrderBy(id => id).ToArrayAsync(TestContext.Current.CancellationToken);
 }
