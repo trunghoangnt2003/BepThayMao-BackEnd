@@ -3,6 +3,9 @@ using Bepthaymao.Application.Abstractions.Persistence;
 using Bepthaymao.Application.Abstractions.Security;
 using Bepthaymao.Domain.Branches;
 using Bepthaymao.Domain.Common;
+using Bepthaymao.Domain.Menu;
+using Bepthaymao.Domain.Orders;
+using Bepthaymao.Domain.Shop;
 using Bepthaymao.Domain.Owners;
 using Bepthaymao.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
@@ -23,6 +26,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataSc
     public DbSet<Branch> Branches => Set<Branch>();
     public DbSet<Owner> Owners => Set<Owner>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<Dish> Dishes => Set<Dish>();
+    public DbSet<BranchDish> BranchDishes => Set<BranchDish>();
+    public DbSet<ShopBanner> ShopBanners => Set<ShopBanner>();
+    public DbSet<ShopAbout> ShopAbouts => Set<ShopAbout>();
+    public DbSet<Order> Orders => Set<Order>();
     public const string BranchScope = "BranchScope";
 
     // Owner là superadmin trên cơ sở của mình (spec FR-003a): thấy bản ghi của mọi cơ sở có Branch.OwnerId trùng claim,
@@ -99,6 +107,72 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataSc
             branch.Property(value => value.BankAccountNo).HasMaxLength(50);
             branch.Property(value => value.BankCode).HasMaxLength(20);
             branch.Property(value => value.SepayAccountRef).HasMaxLength(100);
+        });
+        builder.Entity<Dish>(dish =>
+        {
+            dish.ToTable("dishes", table => table.HasCheckConstraint("ck_dishes_price", "price >= 0"));
+            dish.HasKey(value => value.Id);
+            dish.Property(value => value.Id).ValueGeneratedNever();
+            dish.Property(value => value.Name).HasMaxLength(Dish.NameMaxLength);
+            dish.Property(value => value.Description).HasMaxLength(Dish.DescriptionMaxLength);
+            dish.Property(value => value.ImageUrl).HasMaxLength(500);
+            dish.Property(value => value.Category).HasConversion<string>().HasMaxLength(20);
+            dish.HasOne<Owner>().WithMany().HasForeignKey(value => value.OwnerId).OnDelete(DeleteBehavior.Restrict);
+            dish.HasIndex(value => new { value.OwnerId, value.Category, value.SortOrder });
+        });
+        builder.Entity<BranchDish>(state =>
+        {
+            state.ToTable("branch_dishes");
+            state.HasKey(value => new { value.BranchId, value.DishId });
+            state.HasOne<Branch>().WithMany().HasForeignKey(value => value.BranchId).OnDelete(DeleteBehavior.Cascade);
+            state.HasOne<Dish>().WithMany().HasForeignKey(value => value.DishId).OnDelete(DeleteBehavior.Cascade);
+            state.HasIndex(value => new { value.BranchId, value.IsAvailable });
+        });
+        builder.Entity<ShopBanner>(banner =>
+        {
+            banner.ToTable("shop_banners");
+            banner.HasKey(value => value.Id);
+            banner.Property(value => value.Id).ValueGeneratedNever();
+            banner.Property(value => value.Title).HasMaxLength(ShopBanner.TitleMaxLength);
+            banner.Property(value => value.Body).HasMaxLength(ShopBanner.BodyMaxLength);
+            banner.Property(value => value.ImageUrl).HasMaxLength(500);
+            banner.HasOne<Owner>().WithMany().HasForeignKey(value => value.OwnerId).OnDelete(DeleteBehavior.Restrict);
+            banner.HasOne<Dish>().WithMany().HasForeignKey(value => value.LinkDishId).OnDelete(DeleteBehavior.SetNull);
+        });
+        builder.Entity<ShopAbout>(about =>
+        {
+            about.ToTable("shop_abouts");
+            about.HasKey(value => value.OwnerId);
+            about.Property(value => value.About).HasMaxLength(ShopAbout.MaxLength);
+            about.HasOne<Owner>().WithMany().HasForeignKey(value => value.OwnerId).OnDelete(DeleteBehavior.Cascade);
+        });
+        builder.Entity<Order>(order =>
+        {
+            order.ToTable("orders", table => table.HasCheckConstraint("ck_orders_items_total", "items_total >= 0"));
+            order.HasKey(value => value.Id);
+            order.Property(value => value.Id).ValueGeneratedNever();
+            order.Property(value => value.Code).HasMaxLength(9);
+            order.HasIndex(value => value.Code).IsUnique();
+            order.Property(value => value.CustomerName).HasMaxLength(120);
+            order.Property(value => value.CustomerPhone).HasMaxLength(15);
+            order.Property(value => value.DeliveryAddress).HasMaxLength(300);
+            order.Property(value => value.Note).HasMaxLength(500);
+            order.Property(value => value.CancelReason).HasMaxLength(50);
+            order.Property(value => value.Status).HasConversion<string>().HasMaxLength(20);
+            order.Property(value => value.PaymentStatus).HasConversion<string>().HasMaxLength(20);
+            order.HasOne<Branch>().WithMany().HasForeignKey(value => value.BranchId).OnDelete(DeleteBehavior.Restrict);
+            order.HasIndex(value => new { value.BranchId, value.Status, value.CreatedAt });
+            order.HasIndex(value => new { value.Status, value.ExpiresAt });
+            order.HasMany(value => value.Items).WithOne().HasForeignKey(item => item.OrderId).OnDelete(DeleteBehavior.Cascade);
+            order.Navigation(value => value.Items).UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+        builder.Entity<OrderItem>(item =>
+        {
+            item.ToTable("order_items", table => table.HasCheckConstraint("ck_order_items_quantity", "quantity BETWEEN 1 AND 99"));
+            item.HasKey(value => value.Id);
+            item.Property(value => value.Id).ValueGeneratedNever();
+            item.Property(value => value.DishName).HasMaxLength(Dish.NameMaxLength);
+            item.HasOne<Dish>().WithMany().HasForeignKey(value => value.DishId).OnDelete(DeleteBehavior.Restrict);
         });
     }
     async Task IUnitOfWork.SaveChangesAsync(CancellationToken cancellationToken) => await SaveChangesAsync(cancellationToken);

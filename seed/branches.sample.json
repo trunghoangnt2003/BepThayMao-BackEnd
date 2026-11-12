@@ -11,7 +11,9 @@
       "lat": 10,
       "lng": 106,
       "abandonedThresholdMinutes": 10,
-      "zaloRecipientIds": []
+      "zaloRecipientIds": [],
+      "bankCode": "970436",
+      "bankAccountNo": "00000000001"
     },
     {
       "id": "019a5dc0-0002-7000-8000-000000000002",
@@ -24,7 +26,9 @@
       "lat": 11,
       "lng": 107,
       "abandonedThresholdMinutes": 10,
-      "zaloRecipientIds": []
+      "zaloRecipientIds": [],
+      "bankCode": "970436",
+      "bankAccountNo": "00000000002"
     },
     {
       "id": "019a5dc0-0003-7000-8000-000000000003",

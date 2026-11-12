@@ -1,4 +1,5 @@
 using Bepthaymao.Application.Abstractions.Errors;
+using Bepthaymao.Application.Orders;
 using Bepthaymao.Domain.Common;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
@@ -32,6 +33,18 @@ internal sealed class ApiExceptionHandler(
                 Status = StatusCodes.Status401Unauthorized,
                 Title = "Authentication failed.",
             };
+        }
+        else if (exception is DishesUnavailableException unavailable)
+        {
+            problemDetails = new HttpValidationProblemDetails(new Dictionary<string, string[]>
+            {
+                ["items"] = [unavailable.Message],
+            })
+            {
+                Status = StatusCodes.Status409Conflict,
+                Title = "Conflict.",
+            };
+            problemDetails.Extensions["unavailableDishIds"] = unavailable.DishIds;
         }
         else if (exception is ConflictException conflict)
         {

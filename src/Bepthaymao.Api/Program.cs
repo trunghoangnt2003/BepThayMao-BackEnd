@@ -1,3 +1,5 @@
+using Bepthaymao.Api.Endpoints.Orders;
+using Bepthaymao.Api.Endpoints.Menu;
 using Bepthaymao.Application;
 using Bepthaymao.Api.Health;
 using Bepthaymao.Api.Errors;
@@ -32,7 +34,7 @@ app.UseApiErrorHandling();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
-app.NewVersionedApi("Bepthaymao").MapGroup("/api/v{version:apiVersion}").HasApiVersion(1.0).MapPublicBranchesEndpoints().MapAuthEndpoints().MapOwnerBranchesEndpoints().MapManagerBranchSettingsEndpoints();
+app.NewVersionedApi("Bepthaymao").MapGroup("/api/v{version:apiVersion}").HasApiVersion(1.0).MapPublicBranchesEndpoints().MapAuthEndpoints().MapOwnerBranchesEndpoints().MapManagerBranchSettingsEndpoints().MapMenuEndpoints().MapOrderEndpoints();
 app.MapOpenApi().WithDocumentPerVersion().AllowAnonymous();
 app.MapApiHealthEndpoints();
 await app.RunAsync();

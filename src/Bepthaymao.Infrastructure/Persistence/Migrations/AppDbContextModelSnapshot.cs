@@ -121,6 +121,262 @@ namespace Bepthaymao.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Bepthaymao.Domain.Menu.BranchDish", b =>
+                {
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<Guid>("DishId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("dish_id");
+
+                    b.Property<bool>("IsAvailable")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_available");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("BranchId", "DishId")
+                        .HasName("pk_branch_dishes");
+
+                    b.HasIndex("DishId")
+                        .HasDatabaseName("ix_branch_dishes_dish_id");
+
+                    b.HasIndex("BranchId", "IsAvailable")
+                        .HasDatabaseName("ix_branch_dishes_branch_id_is_available");
+
+                    b.ToTable("branch_dishes", (string)null);
+                });
+
+            modelBuilder.Entity("Bepthaymao.Domain.Menu.Dish", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("category");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("image_url");
+
+                    b.Property<bool>("IsFeatured")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_featured");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_id");
+
+                    b.Property<long>("Price")
+                        .HasColumnType("bigint")
+                        .HasColumnName("price");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.HasKey("Id")
+                        .HasName("pk_dishes");
+
+                    b.HasIndex("OwnerId", "Category", "SortOrder")
+                        .HasDatabaseName("ix_dishes_owner_id_category_sort_order");
+
+                    b.ToTable("dishes", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_dishes_price", "price >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("Bepthaymao.Domain.Orders.Order", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("cancel_reason");
+
+                    b.Property<DateTimeOffset?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cancelled_at");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(9)
+                        .HasColumnType("character varying(9)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CustomerName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("customer_name");
+
+                    b.Property<string>("CustomerPhone")
+                        .IsRequired()
+                        .HasMaxLength(15)
+                        .HasColumnType("character varying(15)")
+                        .HasColumnName("customer_phone");
+
+                    b.Property<string>("DeliveryAddress")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("delivery_address");
+
+                    b.Property<DateOnly>("DeliveryDate")
+                        .HasColumnType("date")
+                        .HasColumnName("delivery_date");
+
+                    b.Property<double?>("DeliveryLat")
+                        .HasColumnType("double precision")
+                        .HasColumnName("delivery_lat");
+
+                    b.Property<double?>("DeliveryLng")
+                        .HasColumnType("double precision")
+                        .HasColumnName("delivery_lng");
+
+                    b.Property<double?>("DistanceKm")
+                        .HasColumnType("double precision")
+                        .HasColumnName("distance_km");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<bool>("IsNextDay")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_next_day");
+
+                    b.Property<long>("ItemsTotal")
+                        .HasColumnType("bigint")
+                        .HasColumnName("items_total");
+
+                    b.Property<DateTimeOffset?>("NextDayAcknowledgedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_day_acknowledged_at");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("note");
+
+                    b.Property<string>("PaymentStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("payment_status");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_orders");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_orders_code");
+
+                    b.HasIndex("Status", "ExpiresAt")
+                        .HasDatabaseName("ix_orders_status_expires_at");
+
+                    b.HasIndex("BranchId", "Status", "CreatedAt")
+                        .HasDatabaseName("ix_orders_branch_id_status_created_at");
+
+                    b.ToTable("orders", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_orders_items_total", "items_total >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("Bepthaymao.Domain.Orders.OrderItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("DishId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("dish_id");
+
+                    b.Property<string>("DishName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("dish_name");
+
+                    b.Property<long>("LineTotal")
+                        .HasColumnType("bigint")
+                        .HasColumnName("line_total");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantity");
+
+                    b.Property<long>("UnitPrice")
+                        .HasColumnType("bigint")
+                        .HasColumnName("unit_price");
+
+                    b.HasKey("Id")
+                        .HasName("pk_order_items");
+
+                    b.HasIndex("DishId")
+                        .HasDatabaseName("ix_order_items_dish_id");
+
+                    b.HasIndex("OrderId")
+                        .HasDatabaseName("ix_order_items_order_id");
+
+                    b.ToTable("order_items", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_order_items_quantity", "quantity BETWEEN 1 AND 99");
+                        });
+                });
+
             modelBuilder.Entity("Bepthaymao.Domain.Owners.Owner", b =>
                 {
                     b.Property<Guid>("Id")
@@ -141,6 +397,82 @@ namespace Bepthaymao.Infrastructure.Persistence.Migrations
                         .HasName("pk_owners");
 
                     b.ToTable("owners", (string)null);
+                });
+
+            modelBuilder.Entity("Bepthaymao.Domain.Shop.ShopAbout", b =>
+                {
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_id");
+
+                    b.Property<string>("About")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("about");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("OwnerId")
+                        .HasName("pk_shop_abouts");
+
+                    b.ToTable("shop_abouts", (string)null);
+                });
+
+            modelBuilder.Entity("Bepthaymao.Domain.Shop.ShopBanner", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Body")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("body");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("image_url");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<Guid?>("LinkDishId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("link_dish_id");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_id");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_shop_banners");
+
+                    b.HasIndex("LinkDishId")
+                        .HasDatabaseName("ix_shop_banners_link_dish_id");
+
+                    b.HasIndex("OwnerId")
+                        .HasDatabaseName("ix_shop_banners_owner_id");
+
+                    b.ToTable("shop_banners", (string)null);
                 });
 
             modelBuilder.Entity("Bepthaymao.Infrastructure.Identity.AppUser", b =>
@@ -487,6 +819,86 @@ namespace Bepthaymao.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_branches_owners_owner_id");
                 });
 
+            modelBuilder.Entity("Bepthaymao.Domain.Menu.BranchDish", b =>
+                {
+                    b.HasOne("Bepthaymao.Domain.Branches.Branch", null)
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_branch_dishes_branches_branch_id");
+
+                    b.HasOne("Bepthaymao.Domain.Menu.Dish", null)
+                        .WithMany()
+                        .HasForeignKey("DishId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_branch_dishes_dishes_dish_id");
+                });
+
+            modelBuilder.Entity("Bepthaymao.Domain.Menu.Dish", b =>
+                {
+                    b.HasOne("Bepthaymao.Domain.Owners.Owner", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_dishes_owners_owner_id");
+                });
+
+            modelBuilder.Entity("Bepthaymao.Domain.Orders.Order", b =>
+                {
+                    b.HasOne("Bepthaymao.Domain.Branches.Branch", null)
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_orders_branches_branch_id");
+                });
+
+            modelBuilder.Entity("Bepthaymao.Domain.Orders.OrderItem", b =>
+                {
+                    b.HasOne("Bepthaymao.Domain.Menu.Dish", null)
+                        .WithMany()
+                        .HasForeignKey("DishId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_order_items_dishes_dish_id");
+
+                    b.HasOne("Bepthaymao.Domain.Orders.Order", null)
+                        .WithMany("Items")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_order_items_orders_order_id");
+                });
+
+            modelBuilder.Entity("Bepthaymao.Domain.Shop.ShopAbout", b =>
+                {
+                    b.HasOne("Bepthaymao.Domain.Owners.Owner", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_shop_abouts_owners_owner_id");
+                });
+
+            modelBuilder.Entity("Bepthaymao.Domain.Shop.ShopBanner", b =>
+                {
+                    b.HasOne("Bepthaymao.Domain.Menu.Dish", null)
+                        .WithMany()
+                        .HasForeignKey("LinkDishId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_shop_banners_dishes_link_dish_id");
+
+                    b.HasOne("Bepthaymao.Domain.Owners.Owner", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_shop_banners_owners_owner_id");
+                });
+
             modelBuilder.Entity("Bepthaymao.Infrastructure.Identity.AppUser", b =>
                 {
                     b.HasOne("Bepthaymao.Domain.Branches.Branch", null)
@@ -567,6 +979,11 @@ namespace Bepthaymao.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_user_tokens_users_user_id");
+                });
+
+            modelBuilder.Entity("Bepthaymao.Domain.Orders.Order", b =>
+                {
+                    b.Navigation("Items");
                 });
 #pragma warning restore 612, 618
         }

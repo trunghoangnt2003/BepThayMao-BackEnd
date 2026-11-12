@@ -2,6 +2,11 @@ using Bepthaymao.Application.Abstractions.Persistence;
 using Bepthaymao.Application.Branches;
 using Bepthaymao.Application.Branches.ListPublicBranches;
 using Bepthaymao.Application.Branches.Owner;
+using Bepthaymao.Application.Menu;
+using Bepthaymao.Application.Orders;
+using Bepthaymao.Application.Shop;
+using Bepthaymao.Infrastructure.Payments;
+using Bepthaymao.Infrastructure.Persistence.Menu;
 using Bepthaymao.Infrastructure.Persistence;
 using Bepthaymao.Infrastructure.Persistence.Branches;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +28,10 @@ public static class DependencyInjection
         services.AddScoped<IPublicBranchReader, PublicBranchReader>();
         services.AddScoped<IBranchRepository, BranchRepository>();
         services.AddScoped<IOwnerBranchReader, OwnerBranchReader>();
+        services.AddScoped<IMenuStore, MenuStore>();
+        services.AddScoped<IShopStore, ShopStore>();
+        services.AddScoped<IOrderStore, OrderStore>();
+        services.AddSingleton<IPaymentQrService, VietQrService>();
         services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<AppDbContext>());
         services.AddSingleton(TimeProvider.System);
         services.AddIdentityCore<AppUser>(options =>
@@ -40,6 +49,7 @@ public static class DependencyInjection
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         services.AddScoped<IManagerAccountService, ManagerAccountService>();
         services.AddScoped<Seeding.AccountSeeder>();
+        services.AddScoped<Seeding.MenuSampleSeeder>();
         return services;
     }
 }

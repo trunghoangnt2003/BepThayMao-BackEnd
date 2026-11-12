@@ -2,6 +2,10 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using Bepthaymao.Api.Security;
+using Bepthaymao.Domain.Menu;
+using Bepthaymao.Domain.Shop;
+using Bepthaymao.Infrastructure.Persistence;
 using Bepthaymao.Integration.Tests.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Routing;
@@ -16,6 +20,9 @@ public sealed class MatrixWorldFixture : IAsyncLifetime
     private readonly Dictionary<string, HttpClient> _clients = [];
 
     internal AuthWorld World { get; private set; } = null!;
+    internal Guid Owner1Dish { get; private set; }
+    internal Guid Owner2Dish { get; private set; }
+    internal Guid Owner1Banner { get; private set; }
 
     public HttpClient ClientFor(string subject) => _clients[subject];
 
@@ -23,8 +30,32 @@ public sealed class MatrixWorldFixture : IAsyncLifetime
     {
         await _infrastructure.InitializeAsync();
         World = await AuthWorld.CreateAsync(_infrastructure);
+        Owner1Dish = await CreateDishAsync(World.Owner1Id);
+        Owner2Dish = await CreateDishAsync(World.Owner2Id);
+        Owner1Banner = await CreateBannerAsync(World.Owner1Id);
         foreach (AuthSubject subject in Enum.GetValues<AuthSubject>())
             _clients[subject.ToString()] = await World.ClientForAsync(subject);
+    }
+
+    /// <summary>Tạo món mới của Owner (DELETE cần tài nguyên riêng mỗi lần gọi vì xóa mềm không lặp lại được).</summary>
+    internal async Task<Guid> CreateDishAsync(Guid ownerId)
+    {
+        using IServiceScope scope = World.Factory.Services.CreateSystemScope();
+        AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Dish dish = Dish.Create(Guid.CreateVersion7(), ownerId, new("Món ma trận", null, 10000, null, DishCategory.XoiMan, false, 0), DateTimeOffset.UtcNow);
+        db.Dishes.Add(dish);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        return dish.Id;
+    }
+
+    internal async Task<Guid> CreateBannerAsync(Guid ownerId)
+    {
+        using IServiceScope scope = World.Factory.Services.CreateSystemScope();
+        AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        ShopBanner banner = ShopBanner.Create(Guid.CreateVersion7(), ownerId, new("Banner ma trận", null, null, null, 0, true), DateTimeOffset.UtcNow);
+        db.ShopBanners.Add(banner);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        return banner.Id;
     }
 
     public async ValueTask DisposeAsync()
@@ -40,7 +71,7 @@ public sealed class MatrixWorldFixture : IAsyncLifetime
 /// </summary>
 public sealed partial class AuthorizationMatrixTests(MatrixWorldFixture fixture) : IClassFixture<MatrixWorldFixture>
 {
-    private sealed record Endpoint(string Method, string Template, bool OwnerArea, bool PerBranch, int SuccessStatus)
+    private sealed record Endpoint(string Method, string Template, bool OwnerArea, bool PerBranch, int SuccessStatus, bool Owner1Resource = false)
     {
         public string Key => $"{Method} {Template}";
     }
@@ -54,6 +85,21 @@ public sealed partial class AuthorizationMatrixTests(MatrixWorldFixture fixture)
         new("POST", "/owner/branches/{branchId}/manager/reset-password", true, true, 204),
         new("GET", "/manager/branch/settings", false, false, 200),
         new("PUT", "/manager/branch/settings", false, false, 200),
+        new("GET", "/owner/dishes", true, false, 200),
+        new("POST", "/owner/dishes", true, false, 201),
+        new("PUT", "/owner/dishes/{dishId}", true, false, 200, Owner1Resource: true),
+        new("DELETE", "/owner/dishes/{dishId}", true, false, 204, Owner1Resource: true),
+        new("GET", "/owner/branches/{branchId}/dishes", true, true, 200),
+        new("PUT", "/owner/branches/{branchId}/dishes/{dishId}/availability", true, true, 200),
+        new("GET", "/owner/shop-content/banners", true, false, 200),
+        new("POST", "/owner/shop-content/banners", true, false, 201),
+        new("PUT", "/owner/shop-content/banners/{bannerId}", true, false, 200, Owner1Resource: true),
+        new("DELETE", "/owner/shop-content/banners/{bannerId}", true, false, 204, Owner1Resource: true),
+        new("PUT", "/owner/shop-content/about", true, false, 200),
+        new("GET", "/owner/orders", true, false, 200),
+        new("GET", "/manager/dishes", false, false, 200),
+        new("PUT", "/manager/dishes/{dishId}/availability", false, false, 200),
+        new("GET", "/manager/orders", false, false, 200),
     ];
 
     private static readonly string[] _subjects = ["Anonymous", "Owner1", "Owner2", "ManagerA1", "ManagerA2", "ManagerB1"];
@@ -68,6 +114,8 @@ public sealed partial class AuthorizationMatrixTests(MatrixWorldFixture fixture)
     {
         if (subject == "Anonymous") return 401;
         if (endpoint.OwnerArea != subject.StartsWith("Owner", StringComparison.Ordinal)) return 403;
+        // Món/banner thuộc Owner1: Owner2 nhận 404 (không lộ sự tồn tại).
+        if (endpoint.Owner1Resource) return subject == "Owner1" ? endpoint.SuccessStatus : 404;
         if (!endpoint.PerBranch) return endpoint.SuccessStatus;
         return _ownerOfBranch[branch] == subject ? endpoint.SuccessStatus : 404;
     }
@@ -104,10 +152,22 @@ public sealed partial class AuthorizationMatrixTests(MatrixWorldFixture fixture)
 
     private static string NameOf(string branch) => $"Cơ sở {branch}";
 
+    /// <summary>Món dùng cho ô ma trận: món của Owner1, hoặc món của chủ cơ sở (theo route hoặc theo cơ sở của quản lý).</summary>
+    private async Task<Guid> DishFor(Endpoint endpoint, string subject, string branch)
+    {
+        if (endpoint.Owner1Resource) return endpoint.Method == "DELETE" ? await fixture.CreateDishAsync(fixture.World.Owner1Id) : fixture.Owner1Dish;
+        string ownerBranch = endpoint.PerBranch ? branch : subject switch { "ManagerB1" => "B1", _ => "A1" };
+        return _ownerOfBranch[ownerBranch] == "Owner2" ? fixture.Owner2Dish : fixture.Owner1Dish;
+    }
+
     private async Task<(HttpStatusCode Status, string Body)> SendAsync(string endpointKey, string subject, string branch)
     {
         Endpoint endpoint = _endpoints.Single(value => value.Key == endpointKey);
         string path = "/api/v1" + endpoint.Template.Replace("{branchId}", IdOf(branch).ToString(), StringComparison.Ordinal);
+        if (path.Contains("{dishId}", StringComparison.Ordinal))
+            path = path.Replace("{dishId}", (await DishFor(endpoint, subject, branch)).ToString(), StringComparison.Ordinal);
+        if (path.Contains("{bannerId}", StringComparison.Ordinal))
+            path = path.Replace("{bannerId}", (endpoint.Method == "DELETE" ? await fixture.CreateBannerAsync(fixture.World.Owner1Id) : fixture.Owner1Banner).ToString(), StringComparison.Ordinal);
         using HttpRequestMessage request = new(new HttpMethod(endpoint.Method), path);
         if (endpoint.Method != "GET") request.Content = JsonContent.Create(BodyFor(endpoint, branch));
         using HttpResponseMessage response = await fixture.ClientFor(subject).SendAsync(request, TestContext.Current.CancellationToken);
@@ -124,6 +184,10 @@ public sealed partial class AuthorizationMatrixTests(MatrixWorldFixture fixture)
         },
         "PUT /owner/branches/{branchId}" => OwnerSettings(NameOf(branch)),
         "POST /owner/branches/{branchId}/manager/reset-password" => new JsonObject { ["newPassword"] = "mat-khau-moi-ma-tran-12" },
+        "POST /owner/dishes" or "PUT /owner/dishes/{dishId}" => new JsonObject { ["name"] = "Món ma trận", ["price"] = 10000, ["category"] = "XoiMan" },
+        "PUT /owner/branches/{branchId}/dishes/{dishId}/availability" or "PUT /manager/dishes/{dishId}/availability" => new JsonObject { ["isAvailable"] = true },
+        "POST /owner/shop-content/banners" or "PUT /owner/shop-content/banners/{bannerId}" => new JsonObject { ["title"] = "Banner ma trận", ["sortOrder"] = 0, ["isActive"] = true },
+        "PUT /owner/shop-content/about" => new JsonObject { ["about"] = "Giới thiệu ma trận" },
         _ => new JsonObject
         {
             ["phone"] = "0901234567",

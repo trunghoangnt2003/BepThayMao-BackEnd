@@ -24,7 +24,7 @@ public sealed class PublicBranchesEndpointTests(InfrastructureFixture infrastruc
         await db.Database.MigrateAsync(TestContext.Current.CancellationToken);
         SeedRunner runner = scope.ServiceProvider.GetRequiredService<SeedRunner>();
         SeedOptions options = new("public-owner", "Test owner", "test-seed-password", Path.Combine(RepositoryPaths.Root, "seed", "branches.sample.json"), "Development", null);
-        Assert.Equal(new("created", 3, 0, 0, 0), await runner.RunAsync(options, TestContext.Current.CancellationToken));
+        Assert.Equal(new("created", 3, 0, 0, 0, SampleDishes: 7), await runner.RunAsync(options, TestContext.Current.CancellationToken));
         Assert.Equal(new("unchanged", 0, 0, 3, 0), await runner.RunAsync(options, TestContext.Current.CancellationToken));
         Assert.Equal(3, await db.Branches.CountAsync(TestContext.Current.CancellationToken));
         using HttpClient client = factory.CreateClient();

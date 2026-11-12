@@ -8,10 +8,11 @@ namespace Bepthaymao.Api.Cli;
 
 public sealed record SeedOptions(string OwnerUserName, string OwnerName, string? OwnerPassword,
     string? BranchFile, string EnvironmentName, string? ManagerPassword);
-public sealed record SeedResult(string Owner, int Inserted, int Updated, int Unchanged, int Managers, string? Note = null);
+public sealed record SeedResult(string Owner, int Inserted, int Updated, int Unchanged, int Managers, string? Note = null, int SampleDishes = 0);
 public sealed class SeedConfigurationException(string message) : Exception(message);
 
-public sealed class SeedRunner(AppDbContext db, AccountSeeder accounts, ICommandHandler<UpsertBranchesCommand, UpsertBranchesResult> handler)
+public sealed class SeedRunner(AppDbContext db, AccountSeeder accounts, MenuSampleSeeder menuSample,
+    ICommandHandler<UpsertBranchesCommand, UpsertBranchesResult> handler)
 {
     public async Task<SeedResult> RunAsync(SeedOptions options, CancellationToken cancellationToken)
     {
@@ -32,8 +33,10 @@ public sealed class SeedRunner(AppDbContext db, AccountSeeder accounts, ICommand
         int managers = 0;
         foreach (BranchUpsertItem item in items.Where(item => item.ManagerIdentifier is not null))
             if (await accounts.EnsureManagerAsync(item.Id, item.ManagerIdentifier!, options.ManagerPassword!, cancellationToken)) managers++;
+        // Thực đơn và banner mẫu đi cùng cơ sở mẫu: chỉ ở Development, chỉ khi Owner chưa có món.
+        int sampleDishes = document is { IsSample: true } && !skipSample ? await menuSample.SeedAsync(ownerId, cancellationToken) : 0;
         await transaction.CommitAsync(cancellationToken);
         return new(created ? "created" : "unchanged", branches.Inserted, branches.Updated, branches.Unchanged, managers,
-            skipSample ? "bỏ qua cơ sở mẫu ngoài môi trường Development" : null);
+            skipSample ? "bỏ qua cơ sở mẫu ngoài môi trường Development" : null, sampleDishes);
     }
 }
