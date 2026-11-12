@@ -94,6 +94,46 @@ public sealed class BranchTests
         Assert.Equal("Mẫu", branch.Name);
     }
 
+    [Fact]
+    public void ApplyManagerSettingsChangesOnlyTheFiveAllowedFields()
+    {
+        Branch branch = CreateWith(Details() with { Lat = 11, Lng = 107, BankAccountNo = "0123456789", BankCode = "VCB", SepayAccountRef = "ref-1", IsActive = false });
+        Assert.True(branch.ApplyManagerSettings(" 0912 345.678 ", new(7, 0), new(20, 0), 15, [" zalo-a ", "zalo-b"]));
+        Assert.Equal("0912345678", branch.Phone);
+        Assert.Equal(new TimeOnly(7, 0), branch.OpenTime);
+        Assert.Equal(new TimeOnly(20, 0), branch.CloseTime);
+        Assert.Equal(15, branch.AbandonedThresholdMinutes);
+        Assert.Equal(["zalo-a", "zalo-b"], branch.ZaloRecipientIds);
+        Assert.Equal("Mẫu", branch.Name);
+        Assert.Equal("Địa chỉ", branch.Address);
+        Assert.Equal((11d, 107d), (branch.Lat, branch.Lng));
+        Assert.Equal(("0123456789", "VCB", "ref-1"), (branch.BankAccountNo, branch.BankCode, branch.SepayAccountRef));
+        Assert.False(branch.IsActive);
+        Assert.False(branch.ApplyManagerSettings("0912345678", new(7, 0), new(20, 0), 15, ["zalo-a", "zalo-b"]));
+    }
+
+    [Theory]
+    [InlineData("12345", 7, 20, 15, "phone")]
+    [InlineData("0912345678", 20, 7, 15, "openTime")]
+    [InlineData("0912345678", 7, 7, 15, "openTime")]
+    [InlineData("0912345678", 7, 20, 0, "abandonedThresholdMinutes")]
+    [InlineData("0912345678", 7, 20, 1441, "abandonedThresholdMinutes")]
+    public void ApplyManagerSettingsRejectsInvalidValuesWithoutChangingState(string phone, int openHour, int closeHour, int threshold, string rule)
+    {
+        Branch branch = CreateWith(Details());
+        Assert.Equal(rule, Assert.Throws<DomainRuleException>(() => branch.ApplyManagerSettings(phone, new(openHour, 0), new(closeHour, 0), threshold, [])).Rule);
+        Assert.Equal(("0901234567", new TimeOnly(6, 0), new TimeOnly(21, 30), 10), (branch.Phone, branch.OpenTime, branch.CloseTime, branch.AbandonedThresholdMinutes));
+    }
+
+    [Fact]
+    public void ApplyManagerSettingsRejectsDuplicateAndOversizedZaloRecipients()
+    {
+        Branch branch = CreateWith(Details());
+        Assert.Equal("zaloRecipientIds", Assert.Throws<DomainRuleException>(() => branch.ApplyManagerSettings("0901234567", new(6, 0), new(21, 30), 10, [" id ", "id"])).Rule);
+        Assert.Equal("zaloRecipientIds", Assert.Throws<DomainRuleException>(() => branch.ApplyManagerSettings("0901234567", new(6, 0), new(21, 30), 10, [new string('a', 65)])).Rule);
+        Assert.Empty(branch.ZaloRecipientIds);
+    }
+
     private static Branch CreateWith(BranchDetails details) => Branch.Create(Guid.CreateVersion7(), Guid.CreateVersion7(), details, DateTimeOffset.UtcNow);
 
     private static Branch Create(string name = " Mẫu ", string address = " Địa chỉ ", string phone = "0901234567") =>
