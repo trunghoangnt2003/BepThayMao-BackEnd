@@ -169,6 +169,33 @@ public sealed class MenuOrderFlowTests(InfrastructureFixture infrastructure) : I
     }
 
     [Fact]
+    public async Task OverviewCountsOnlyBranchesInScope()
+    {
+        HttpClient guest = _factory.CreateClient();
+        (await PlaceAsync(guest, _open, _available, acknowledged: false)).Dispose();
+        (await PlaceOtherOwnerAsync(guest)).Dispose();
+
+        HttpClient owner = await LoginAsync("owner-one");
+        JsonElement overview = await GetJsonAsync(owner, "/api/v1/owner/overview");
+        Guid[] branches = [.. overview.GetProperty("branches").EnumerateArray().Select(branch => branch.GetProperty("branchId").GetGuid())];
+        Assert.Equal([_open, _closed, _noBank], branches);
+        Assert.True(overview.GetProperty("ordersToday").GetInt32() >= 1);
+        Assert.Equal(16, overview.GetProperty("ordersByHour").GetArrayLength());
+        Assert.Equal(7, overview.GetProperty("days").GetArrayLength());
+        Assert.Contains(overview.GetProperty("soldOut").EnumerateArray(), item => item.GetProperty("dishName").GetString() == "Xôi gấc");
+        Assert.Contains(overview.GetProperty("topDishes").EnumerateArray(), item => item.GetProperty("dishName").GetString() == "Xôi xéo");
+        Assert.DoesNotContain(overview.GetProperty("topDishes").EnumerateArray(), item => item.GetProperty("dishName").GetString() == "Xôi chủ khác");
+
+        JsonElement closedOnly = await GetJsonAsync(owner, $"/api/v1/owner/overview?branchId={_closed}");
+        Assert.Equal(_closed, closedOnly.GetProperty("branches").EnumerateArray().Single().GetProperty("branchId").GetGuid());
+        using HttpResponseMessage foreign = await owner.GetAsync($"/api/v1/owner/overview?branchId={_otherOwner}", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.Forbidden, foreign.StatusCode);
+
+        JsonElement manager = await GetJsonAsync(await LoginAsync("manager-open"), "/api/v1/manager/overview");
+        Assert.Equal(_open, manager.GetProperty("branches").EnumerateArray().Single().GetProperty("branchId").GetGuid());
+    }
+
+    [Fact]
     public async Task ManagerTogglesOnlyOwnBranchAndOwnerSeesItInMenu()
     {
         HttpClient manager = await LoginAsync("manager-open");

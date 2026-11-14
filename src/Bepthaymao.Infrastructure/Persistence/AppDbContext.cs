@@ -30,6 +30,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataSc
     public DbSet<BranchDish> BranchDishes => Set<BranchDish>();
     public DbSet<ShopBanner> ShopBanners => Set<ShopBanner>();
     public DbSet<ShopAbout> ShopAbouts => Set<ShopAbout>();
+    public DbSet<ShopLegal> ShopLegals => Set<ShopLegal>();
+    public DbSet<ShopPolicy> ShopPolicies => Set<ShopPolicy>();
     public DbSet<Order> Orders => Set<Order>();
     public const string BranchScope = "BranchScope";
 
@@ -145,6 +147,27 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataSc
             about.HasKey(value => value.OwnerId);
             about.Property(value => value.About).HasMaxLength(ShopAbout.MaxLength);
             about.HasOne<Owner>().WithMany().HasForeignKey(value => value.OwnerId).OnDelete(DeleteBehavior.Cascade);
+        });
+        builder.Entity<ShopLegal>(legal =>
+        {
+            legal.ToTable("shop_legals");
+            legal.HasKey(value => value.OwnerId);
+            legal.Property(value => value.BusinessName).HasMaxLength(ShopLegal.NameMaxLength);
+            legal.Property(value => value.RegistrationNumber).HasMaxLength(ShopLegal.RegistrationMaxLength);
+            legal.Property(value => value.RegistrationIssuedBy).HasMaxLength(ShopLegal.IssuedByMaxLength);
+            legal.Property(value => value.Address).HasMaxLength(ShopLegal.AddressMaxLength);
+            legal.Property(value => value.Phone).HasMaxLength(ShopLegal.PhoneMaxLength);
+            legal.Property(value => value.Email).HasMaxLength(ShopLegal.EmailMaxLength);
+            legal.Property(value => value.MoitNoticeUrl).HasMaxLength(ShopLegal.NoticeUrlMaxLength);
+            legal.HasOne<Owner>().WithMany().HasForeignKey(value => value.OwnerId).OnDelete(DeleteBehavior.Cascade);
+        });
+        builder.Entity<ShopPolicy>(policy =>
+        {
+            policy.ToTable("shop_policies");
+            policy.HasKey(value => new { value.OwnerId, value.Kind });
+            policy.Property(value => value.Kind).HasConversion<string>().HasMaxLength(20);
+            policy.Property(value => value.Body).HasMaxLength(ShopPolicy.BodyMaxLength);
+            policy.HasOne<Owner>().WithMany().HasForeignKey(value => value.OwnerId).OnDelete(DeleteBehavior.Cascade);
         });
         builder.Entity<Order>(order =>
         {

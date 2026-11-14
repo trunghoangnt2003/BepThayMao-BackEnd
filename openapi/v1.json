@@ -310,6 +310,91 @@
         }
       }
     },
+    "/api/v1/shop/legal": {
+      "get": {
+        "tags": [
+          "Shop"
+        ],
+        "summary": "Thông tin người bán và danh sách chính sách cho chân trang",
+        "description": "Trường chủ quán chưa nhập là null; chỉ liệt kê chính sách đã có nội dung.",
+        "operationId": "getShopLegal",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShopLegalDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shop/policies/{kind}": {
+      "get": {
+        "tags": [
+          "Shop"
+        ],
+        "summary": "Nội dung một chính sách",
+        "description": "kind: Terms, Privacy, Delivery, Payment, Refund, Complaint (không phân biệt hoa thường); 404 nếu chưa có nội dung.",
+        "operationId": "getShopPolicy",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/checkout/branch-options": {
       "post": {
         "tags": [
@@ -693,6 +778,111 @@
                   "items": {
                     "$ref": "#/components/schemas/OrderDto"
                   }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ]
+      }
+    },
+    "/api/v1/owner/overview": {
+      "get": {
+        "tags": [
+          "Owner"
+        ],
+        "summary": "Tổng quan hôm nay của mọi cơ sở mình sở hữu, hoặc một cơ sở",
+        "description": "Số đơn, tiền món đã thanh toán, chờ thanh toán, đơn theo giờ, 7 ngày, món đặt nhiều, món đang hết, cơ sở, hoạt động hôm nay (giờ Việt Nam). branchId của Owner khác trả 403.",
+        "operationId": "getOwnerOverview",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OverviewDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ]
+      }
+    },
+    "/api/v1/manager/overview": {
+      "get": {
+        "tags": [
+          "Manager"
+        ],
+        "summary": "Tổng quan hôm nay của cơ sở mình",
+        "description": "Như tổng quan của Owner, chỉ cơ sở trong claim.",
+        "operationId": "getManagerOverview",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OverviewDto"
                 }
               }
             }
@@ -1976,6 +2166,206 @@
         ]
       }
     },
+    "/api/v1/owner/shop-content/legal": {
+      "get": {
+        "tags": [
+          "Owner"
+        ],
+        "summary": "Thông tin người bán và đủ sáu chính sách để chủ quán sửa",
+        "description": "Chính sách chưa viết có body rỗng.",
+        "operationId": "getOwnerLegal",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerLegalDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Owner"
+        ],
+        "summary": "Sửa thông tin người bán ở chân trang",
+        "description": "Trường rỗng là xóa; moitNoticeUrl chỉ nhận https://online.gov.vn/...",
+        "operationId": "updateOwnerLegal",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LegalInputRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerLegalDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ]
+      }
+    },
+    "/api/v1/owner/shop-content/policies/{kind}": {
+      "put": {
+        "tags": [
+          "Owner"
+        ],
+        "summary": "Sửa nội dung một chính sách",
+        "description": "Chuỗi rỗng ẩn chính sách khỏi chân trang; kind không hợp lệ trả 404.",
+        "operationId": "updateOwnerPolicy",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyInputRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ]
+      }
+    },
     "/api/v1/manager/dishes": {
       "get": {
         "tags": [
@@ -2754,6 +3144,61 @@
         },
         "additionalProperties": false
       },
+      "LegalInputRequest": {
+        "type": "object",
+        "properties": {
+          "businessName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "registrationNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "registrationIssuedOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "registrationIssuedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "phone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "moitNoticeUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
       "LoginRequest": {
         "required": [
           "identifier",
@@ -3178,6 +3623,278 @@
           }
         }
       },
+      "OverviewActivityDto": {
+        "required": [
+          "kind",
+          "at",
+          "title",
+          "detail"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/OverviewActivityKind"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "title": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      },
+      "OverviewActivityKind": {
+        "enum": [
+          "OrderCreated",
+          "OrderPaid",
+          "OrderCancelled",
+          "DishSoldOut"
+        ]
+      },
+      "OverviewBranchDto": {
+        "required": [
+          "branchId",
+          "name",
+          "ordersToday",
+          "isActive",
+          "isOpenNow",
+          "acceptsOrders",
+          "openTime",
+          "closeTime"
+        ],
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ordersToday": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "isOpenNow": {
+            "type": "boolean"
+          },
+          "acceptsOrders": {
+            "type": "boolean"
+          },
+          "openTime": {
+            "type": "string"
+          },
+          "closeTime": {
+            "type": "string"
+          }
+        }
+      },
+      "OverviewDayDto": {
+        "required": [
+          "date",
+          "orders",
+          "paidAmount"
+        ],
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "orders": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "paidAmount": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "OverviewDishDto": {
+        "required": [
+          "dishName",
+          "quantity"
+        ],
+        "type": "object",
+        "properties": {
+          "dishName": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "OverviewDto": {
+        "required": [
+          "ordersToday",
+          "paidOrdersToday",
+          "paidAmountToday",
+          "pendingPayment",
+          "ordersByHour",
+          "firstHour",
+          "days",
+          "topDishes",
+          "soldOut",
+          "branches",
+          "activity"
+        ],
+        "type": "object",
+        "properties": {
+          "ordersToday": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "paidOrdersToday": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "paidAmountToday": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pendingPayment": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "ordersByHour": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "firstHour": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "days": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OverviewDayDto"
+            }
+          },
+          "topDishes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OverviewDishDto"
+            }
+          },
+          "soldOut": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OverviewSoldOutDto"
+            }
+          },
+          "branches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OverviewBranchDto"
+            }
+          },
+          "activity": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OverviewActivityDto"
+            }
+          }
+        }
+      },
+      "OverviewSoldOutDto": {
+        "required": [
+          "dishName",
+          "branchName"
+        ],
+        "type": "object",
+        "properties": {
+          "dishName": {
+            "type": "string"
+          },
+          "branchName": {
+            "type": "string"
+          }
+        }
+      },
+      "OwnerLegalDto": {
+        "required": [
+          "businessName",
+          "registrationNumber",
+          "registrationIssuedOn",
+          "registrationIssuedBy",
+          "address",
+          "phone",
+          "email",
+          "moitNoticeUrl",
+          "policies"
+        ],
+        "type": "object",
+        "properties": {
+          "businessName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "registrationNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "registrationIssuedOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "registrationIssuedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "phone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "moitNoticeUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "policies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PolicyDto"
+            }
+          }
+        }
+      },
       "PaymentDto": {
         "required": [
           "qrUrl",
@@ -3209,6 +3926,70 @@
           "Paid",
           "LatePaid"
         ]
+      },
+      "PolicyDto": {
+        "required": [
+          "kind",
+          "title",
+          "body",
+          "updatedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/PolicyKind"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "PolicyInputRequest": {
+        "required": [
+          "body"
+        ],
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PolicyKind": {
+        "enum": [
+          "Terms",
+          "Privacy",
+          "Delivery",
+          "Payment",
+          "Refund",
+          "Complaint"
+        ]
+      },
+      "PolicySummaryDto": {
+        "required": [
+          "kind",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/PolicyKind"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
       },
       "ProblemDetails": {
         "required": [
@@ -3319,6 +4100,77 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "ShopLegalDto": {
+        "required": [
+          "businessName",
+          "registrationNumber",
+          "registrationIssuedOn",
+          "registrationIssuedBy",
+          "address",
+          "phone",
+          "email",
+          "moitNoticeUrl",
+          "policies"
+        ],
+        "type": "object",
+        "properties": {
+          "businessName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "registrationNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "registrationIssuedOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "registrationIssuedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "phone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "moitNoticeUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "policies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PolicySummaryDto"
+            }
           }
         }
       },

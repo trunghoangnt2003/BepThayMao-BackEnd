@@ -1,9 +1,11 @@
 using System.Text.Json.Serialization;
 using Bepthaymao.Api.Security;
+using Bepthaymao.Application.Abstractions.Errors;
 using Bepthaymao.Application.Abstractions.Messaging;
 using Bepthaymao.Application.Menu;
 using Bepthaymao.Application.Shop;
 using Bepthaymao.Domain.Menu;
+using Bepthaymao.Domain.Shop;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 
@@ -29,6 +31,18 @@ public sealed record BannerInputRequest([property: JsonRequired] string Title, [
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record AboutInputRequest([property: JsonRequired] string About);
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record LegalInputRequest(string? BusinessName = null, string? RegistrationNumber = null,
+    DateOnly? RegistrationIssuedOn = null, string? RegistrationIssuedBy = null, string? Address = null, string? Phone = null,
+    string? Email = null, string? MoitNoticeUrl = null)
+{
+    public LegalDetails ToDetails() =>
+        new(BusinessName, RegistrationNumber, RegistrationIssuedOn, RegistrationIssuedBy, Address, Phone, Email, MoitNoticeUrl);
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record PolicyInputRequest([property: JsonRequired] string Body);
+
 public static class MenuEndpoints
 {
     public static RouteGroupBuilder MapMenuEndpoints(this RouteGroupBuilder v1)
@@ -49,6 +63,19 @@ public static class MenuEndpoints
             .WithName("getShopContent").WithTags("Shop").WithSummary("Banner đang bật và đoạn giới thiệu quán cho trang chủ khách")
             .WithDescription("Banner theo sortOrder tăng dần, chỉ banner isActive; about null nếu chủ quán chưa nhập.")
             .AllowAnonymous().RequireRateLimiting(RateLimitPolicies.Public).ProducesProblem(StatusCodes.Status429TooManyRequests);
+
+        v1.MapGet("/shop/legal", async ([FromServices] IQueryHandler<GetShopLegalQuery, ShopLegalDto> handler, CancellationToken cancellationToken) =>
+            TypedResults.Ok(await handler.Handle(new(), cancellationToken)))
+            .WithName("getShopLegal").WithTags("Shop").WithSummary("Thông tin người bán và danh sách chính sách cho chân trang")
+            .WithDescription("Trường chủ quán chưa nhập là null; chỉ liệt kê chính sách đã có nội dung.")
+            .AllowAnonymous().RequireRateLimiting(RateLimitPolicies.Public).ProducesProblem(StatusCodes.Status429TooManyRequests);
+        v1.MapGet("/shop/policies/{kind}", async (string kind, [FromServices] IQueryHandler<GetShopPolicyQuery, PolicyDto> handler,
+            CancellationToken cancellationToken) =>
+            TypedResults.Ok(await handler.Handle(new(ParsePolicy(kind)), cancellationToken)))
+            .WithName("getShopPolicy").WithTags("Shop").WithSummary("Nội dung một chính sách")
+            .WithDescription("kind: Terms, Privacy, Delivery, Payment, Refund, Complaint (không phân biệt hoa thường); 404 nếu chưa có nội dung.")
+            .AllowAnonymous().RequireRateLimiting(RateLimitPolicies.Public)
+            .ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         RouteGroupBuilder owner = v1.MapGroup("/owner").WithTags("Owner").RequireAuthorization(PolicyNames.OwnerOnly);
         owner.MapGet("/dishes", async ([FromServices] IQueryHandler<ListOwnerDishesQuery, IReadOnlyList<DishDto>> handler, CancellationToken cancellationToken) =>
@@ -112,6 +139,23 @@ public static class MenuEndpoints
             .WithName("updateOwnerAbout").WithSummary("Sửa đoạn giới thiệu quán").WithDescription("Chuỗi rỗng xóa đoạn giới thiệu.")
             .ProducesOwnerProblems().ProducesProblem(StatusCodes.Status400BadRequest);
 
+        owner.MapGet("/shop-content/legal", async ([FromServices] IQueryHandler<GetOwnerLegalQuery, OwnerLegalDto> handler,
+            CancellationToken cancellationToken) => TypedResults.Ok(await handler.Handle(new(), cancellationToken)))
+            .WithName("getOwnerLegal").WithSummary("Thông tin người bán và đủ sáu chính sách để chủ quán sửa")
+            .WithDescription("Chính sách chưa viết có body rỗng.").ProducesOwnerProblems();
+        owner.MapPut("/shop-content/legal", async (LegalInputRequest request,
+            [FromServices] ICommandHandler<UpdateOwnerLegalCommand, OwnerLegalDto> handler, CancellationToken cancellationToken) =>
+            TypedResults.Ok(await handler.Handle(new(request.ToDetails()), cancellationToken)))
+            .WithName("updateOwnerLegal").WithSummary("Sửa thông tin người bán ở chân trang")
+            .WithDescription("Trường rỗng là xóa; moitNoticeUrl chỉ nhận https://online.gov.vn/...")
+            .ProducesOwnerProblems().ProducesProblem(StatusCodes.Status400BadRequest);
+        owner.MapPut("/shop-content/policies/{kind}", async (string kind, PolicyInputRequest request,
+            [FromServices] ICommandHandler<UpdateOwnerPolicyCommand, PolicyDto> handler, CancellationToken cancellationToken) =>
+            TypedResults.Ok(await handler.Handle(new(ParsePolicy(kind), request.Body), cancellationToken)))
+            .WithName("updateOwnerPolicy").WithSummary("Sửa nội dung một chính sách")
+            .WithDescription("Chuỗi rỗng ẩn chính sách khỏi chân trang; kind không hợp lệ trả 404.")
+            .ProducesOwnerProblems().ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status404NotFound);
+
         RouteGroupBuilder manager = v1.MapGroup("/manager").WithTags("Manager").RequireAuthorization(PolicyNames.ManagerOnly);
         manager.MapGet("/dishes", async ([FromServices] IQueryHandler<ListBranchDishesQuery, IReadOnlyList<BranchDishDto>> handler,
             CancellationToken cancellationToken) => TypedResults.Ok(await handler.Handle(new(null), cancellationToken)))
@@ -128,4 +172,9 @@ public static class MenuEndpoints
 
     internal static RouteHandlerBuilder ProducesOwnerProblems(this RouteHandlerBuilder builder) =>
         builder.ProducesProblem(StatusCodes.Status401Unauthorized).ProducesProblem(StatusCodes.Status403Forbidden);
+
+    private static PolicyKind ParsePolicy(string kind) =>
+        Enum.TryParse(kind, ignoreCase: true, out PolicyKind value) && Enum.IsDefined(value) && !int.TryParse(kind, out _)
+            ? value
+            : throw new NotFoundException();
 }

@@ -96,10 +96,15 @@ public sealed partial class AuthorizationMatrixTests(MatrixWorldFixture fixture)
         new("PUT", "/owner/shop-content/banners/{bannerId}", true, false, 200, Owner1Resource: true),
         new("DELETE", "/owner/shop-content/banners/{bannerId}", true, false, 204, Owner1Resource: true),
         new("PUT", "/owner/shop-content/about", true, false, 200),
+        new("GET", "/owner/shop-content/legal", true, false, 200),
+        new("PUT", "/owner/shop-content/legal", true, false, 200),
+        new("PUT", "/owner/shop-content/policies/{kind}", true, false, 200),
         new("GET", "/owner/orders", true, false, 200),
         new("GET", "/manager/dishes", false, false, 200),
         new("PUT", "/manager/dishes/{dishId}/availability", false, false, 200),
         new("GET", "/manager/orders", false, false, 200),
+        new("GET", "/owner/overview", true, false, 200),
+        new("GET", "/manager/overview", false, false, 200),
     ];
 
     private static readonly string[] _subjects = ["Anonymous", "Owner1", "Owner2", "ManagerA1", "ManagerA2", "ManagerB1"];
@@ -166,6 +171,7 @@ public sealed partial class AuthorizationMatrixTests(MatrixWorldFixture fixture)
         string path = "/api/v1" + endpoint.Template.Replace("{branchId}", IdOf(branch).ToString(), StringComparison.Ordinal);
         if (path.Contains("{dishId}", StringComparison.Ordinal))
             path = path.Replace("{dishId}", (await DishFor(endpoint, subject, branch)).ToString(), StringComparison.Ordinal);
+        path = path.Replace("{kind}", "privacy", StringComparison.Ordinal);
         if (path.Contains("{bannerId}", StringComparison.Ordinal))
             path = path.Replace("{bannerId}", (endpoint.Method == "DELETE" ? await fixture.CreateBannerAsync(fixture.World.Owner1Id) : fixture.Owner1Banner).ToString(), StringComparison.Ordinal);
         using HttpRequestMessage request = new(new HttpMethod(endpoint.Method), path);
@@ -188,6 +194,8 @@ public sealed partial class AuthorizationMatrixTests(MatrixWorldFixture fixture)
         "PUT /owner/branches/{branchId}/dishes/{dishId}/availability" or "PUT /manager/dishes/{dishId}/availability" => new JsonObject { ["isAvailable"] = true },
         "POST /owner/shop-content/banners" or "PUT /owner/shop-content/banners/{bannerId}" => new JsonObject { ["title"] = "Banner ma trận", ["sortOrder"] = 0, ["isActive"] = true },
         "PUT /owner/shop-content/about" => new JsonObject { ["about"] = "Giới thiệu ma trận" },
+        "PUT /owner/shop-content/legal" => new JsonObject { ["businessName"] = "Hộ kinh doanh ma trận" },
+        "PUT /owner/shop-content/policies/{kind}" => new JsonObject { ["body"] = "Chính sách ma trận" },
         _ => new JsonObject
         {
             ["phone"] = "0901234567",

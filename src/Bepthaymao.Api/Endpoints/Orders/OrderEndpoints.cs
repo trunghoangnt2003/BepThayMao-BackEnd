@@ -3,6 +3,7 @@ using Bepthaymao.Api.Endpoints.Menu;
 using Bepthaymao.Api.Security;
 using Bepthaymao.Application.Abstractions.Messaging;
 using Bepthaymao.Application.Orders;
+using Bepthaymao.Application.Overview;
 using Bepthaymao.Domain.Orders;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
@@ -79,6 +80,16 @@ public static class OrderEndpoints
             .WithName("listOwnerOrders").WithTags("Owner").WithSummary("Đơn của mọi cơ sở mình sở hữu, hoặc một cơ sở")
             .WithDescription("Owner là superadmin trên cơ sở của mình; branchId của Owner khác trả 403.").RequireAuthorization(PolicyNames.OwnerOnly)
             .ProducesOwnerProblems();
+        v1.MapGet("/owner/overview", async ([FromQuery] Guid? branchId, [FromServices] IQueryHandler<GetOverviewQuery, OverviewDto> handler,
+            CancellationToken cancellationToken) => TypedResults.Ok(await handler.Handle(new(branchId), cancellationToken)))
+            .WithName("getOwnerOverview").WithTags("Owner").WithSummary("Tổng quan hôm nay của mọi cơ sở mình sở hữu, hoặc một cơ sở")
+            .WithDescription("Số đơn, tiền món đã thanh toán, chờ thanh toán, đơn theo giờ, 7 ngày, món đặt nhiều, món đang hết, cơ sở, hoạt động hôm nay (giờ Việt Nam). branchId của Owner khác trả 403.")
+            .RequireAuthorization(PolicyNames.OwnerOnly).ProducesOwnerProblems();
+        v1.MapGet("/manager/overview", async ([FromServices] IQueryHandler<GetOverviewQuery, OverviewDto> handler, CancellationToken cancellationToken) =>
+            TypedResults.Ok(await handler.Handle(new(null), cancellationToken)))
+            .WithName("getManagerOverview").WithTags("Manager").WithSummary("Tổng quan hôm nay của cơ sở mình")
+            .WithDescription("Như tổng quan của Owner, chỉ cơ sở trong claim.").RequireAuthorization(PolicyNames.ManagerOnly)
+            .ProducesProblem(StatusCodes.Status401Unauthorized).ProducesProblem(StatusCodes.Status403Forbidden);
         return v1;
     }
 }

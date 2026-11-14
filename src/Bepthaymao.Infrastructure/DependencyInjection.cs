@@ -4,6 +4,7 @@ using Bepthaymao.Application.Branches.ListPublicBranches;
 using Bepthaymao.Application.Branches.Owner;
 using Bepthaymao.Application.Menu;
 using Bepthaymao.Application.Orders;
+using Bepthaymao.Application.Overview;
 using Bepthaymao.Application.Shop;
 using Bepthaymao.Infrastructure.Payments;
 using Bepthaymao.Infrastructure.Persistence.Menu;
@@ -30,7 +31,9 @@ public static class DependencyInjection
         services.AddScoped<IOwnerBranchReader, OwnerBranchReader>();
         services.AddScoped<IMenuStore, MenuStore>();
         services.AddScoped<IShopStore, ShopStore>();
+        services.AddScoped<ILegalStore, LegalStore>();
         services.AddScoped<IOrderStore, OrderStore>();
+        services.AddScoped<IOverviewReader, OverviewReader>();
         services.AddSingleton<IPaymentQrService, VietQrService>();
         services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<AppDbContext>());
         services.AddSingleton(TimeProvider.System);

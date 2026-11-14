@@ -9,7 +9,7 @@ public sealed class AnonymousAllowlistTests
 {
     // Phase 2 (hợp đồng 1.1.0): thực đơn, nội dung quán, chọn cơ sở, đặt/tra/hủy đơn là công khai, có rate limit Public.
     private static readonly string[] _expected = ["login", "refreshToken", "logout", "listPublicBranches", "getMenu", "getMenuDish", "getShopContent",
-        "getBranchOptions", "createOrder", "getOrder", "cancelOrder", "/health/live", "/health/ready", "/openapi/{documentName}.json"];
+        "getShopLegal", "getShopPolicy", "getBranchOptions", "createOrder", "getOrder", "cancelOrder", "/health/live", "/health/ready", "/openapi/{documentName}.json"];
     [Fact]
     public async Task AnonymousEndpointsAreExactlyTheReviewedAllowlist()
     {

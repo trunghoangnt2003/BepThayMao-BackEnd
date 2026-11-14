@@ -475,6 +475,88 @@ namespace Bepthaymao.Infrastructure.Persistence.Migrations
                     b.ToTable("shop_banners", (string)null);
                 });
 
+            modelBuilder.Entity("Bepthaymao.Domain.Shop.ShopLegal", b =>
+                {
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_id");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("address");
+
+                    b.Property<string>("BusinessName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("business_name");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("email");
+
+                    b.Property<string>("MoitNoticeUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("moit_notice_url");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("phone");
+
+                    b.Property<string>("RegistrationIssuedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("registration_issued_by");
+
+                    b.Property<DateOnly?>("RegistrationIssuedOn")
+                        .HasColumnType("date")
+                        .HasColumnName("registration_issued_on");
+
+                    b.Property<string>("RegistrationNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("registration_number");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("OwnerId")
+                        .HasName("pk_shop_legals");
+
+                    b.ToTable("shop_legals", (string)null);
+                });
+
+            modelBuilder.Entity("Bepthaymao.Domain.Shop.ShopPolicy", b =>
+                {
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_id");
+
+                    b.Property<string>("Kind")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(20000)
+                        .HasColumnType("character varying(20000)")
+                        .HasColumnName("body");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("OwnerId", "Kind")
+                        .HasName("pk_shop_policies");
+
+                    b.ToTable("shop_policies", (string)null);
+                });
+
             modelBuilder.Entity("Bepthaymao.Infrastructure.Identity.AppUser", b =>
                 {
                     b.Property<Guid>("Id")
@@ -897,6 +979,26 @@ namespace Bepthaymao.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_shop_banners_owners_owner_id");
+                });
+
+            modelBuilder.Entity("Bepthaymao.Domain.Shop.ShopLegal", b =>
+                {
+                    b.HasOne("Bepthaymao.Domain.Owners.Owner", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_shop_legals_owners_owner_id");
+                });
+
+            modelBuilder.Entity("Bepthaymao.Domain.Shop.ShopPolicy", b =>
+                {
+                    b.HasOne("Bepthaymao.Domain.Owners.Owner", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_shop_policies_owners_owner_id");
                 });
 
             modelBuilder.Entity("Bepthaymao.Infrastructure.Identity.AppUser", b =>
