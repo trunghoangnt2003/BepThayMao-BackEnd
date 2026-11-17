@@ -11,6 +11,9 @@ namespace Bepthaymao.Infrastructure.Seeding;
 /// </summary>
 public sealed class MenuSampleSeeder(AppDbContext db, TimeProvider clock)
 {
+    // Ảnh tự host trên web khách (frontend public/images/mon); chỉ món có ảnh khớp mới gắn, món khác để null.
+    private const string _xoiGaImage = "/images/mon/xoi-ga-bat.jpg";
+
     private static readonly (string Name, string Description, long Price, DishCategory Category, bool Featured)[] _dishes =
     [
         ("Xôi xéo", "Nếp vàng, đậu xanh, hành phi giòn.", 25000, DishCategory.XoiMan, false),
@@ -27,13 +30,14 @@ public sealed class MenuSampleSeeder(AppDbContext db, TimeProvider clock)
         if (await db.Dishes.AnyAsync(dish => dish.OwnerId == ownerId, cancellationToken)) return 0;
         DateTimeOffset now = clock.GetUtcNow();
         List<Dish> dishes = [.. _dishes.Select((dish, index) => Dish.Create(Guid.CreateVersion7(), ownerId,
-            new DishDetails(dish.Name, dish.Description, dish.Price, null, dish.Category, dish.Featured, index), now))];
+            new DishDetails(dish.Name, dish.Description, dish.Price, dish.Name == "Xôi gà xé" ? _xoiGaImage : null,
+                dish.Category, dish.Featured, index), now))];
         db.Dishes.AddRange(dishes);
         Dish featured = dishes.First(dish => dish.Name == "Xôi gấc");
         db.ShopBanners.AddRange(
-            ShopBanner.Create(Guid.CreateVersion7(), ownerId, new("Bếp Thầy Mão", "Xôi nóng giao tận nơi từ 3 cơ sở.", null, null, 0, true), now),
+            ShopBanner.Create(Guid.CreateVersion7(), ownerId, new("Bếp Thầy Mão", "Xôi nóng giao tận nơi từ 3 cơ sở.", "/images/mon/xoi-ga-hop.jpg", null, 0, true), now),
             ShopBanner.Create(Guid.CreateVersion7(), ownerId, new("Xôi gấc", "Món quán giới thiệu tuần này.", null, featured.Id, 1, true), now),
-            ShopBanner.Create(Guid.CreateVersion7(), ownerId, new("Đặt xôi trong 3 bước", "Chọn món, chọn cơ sở, quét QR.", null, null, 2, true), now));
+            ShopBanner.Create(Guid.CreateVersion7(), ownerId, new("Đặt xôi trong 3 bước", "Chọn món, chọn cơ sở, quét QR.", "/images/mon/xoi-xa-xiu-hop.jpg", null, 2, true), now));
         if (!await db.ShopAbouts.AnyAsync(about => about.OwnerId == ownerId, cancellationToken))
             db.ShopAbouts.Add(ShopAbout.Create(ownerId, "Đoạn giới thiệu mẫu: quán xôi gia đình, nấu mỗi sáng tại từng cơ sở. Chủ quán thay bằng câu chuyện thật.", now));
         Guid? secondBranch = await db.Branches.IgnoreQueryFilters([AppDbContext.BranchScope])

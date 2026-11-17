@@ -24,12 +24,19 @@ internal sealed class DishInputValidator : AbstractValidator<DishInputData>
         RuleFor(dish => dish.Price).GreaterThanOrEqualTo(0).WithMessage("Nhập giá là số nguyên từ 0 trở lên.");
         RuleFor(dish => dish.SortOrder).GreaterThanOrEqualTo(0).WithMessage("Thứ tự là số nguyên từ 0 trở lên.");
         RuleFor(dish => dish.Category).IsInEnum().WithMessage("Nhóm món không hợp lệ.");
-        RuleFor(dish => dish.ImageUrl).Must(BeHttpUrl).When(dish => !string.IsNullOrWhiteSpace(dish.ImageUrl))
-            .WithMessage("Đường dẫn ảnh phải bắt đầu bằng http:// hoặc https://.");
+        RuleFor(dish => dish.ImageUrl).Must(BeImageUrl).When(dish => !string.IsNullOrWhiteSpace(dish.ImageUrl))
+            .WithMessage("Đường dẫn ảnh phải bắt đầu bằng http://, https:// hoặc / (ảnh có sẵn trên web của quán).");
     }
 
-    private static bool BeHttpUrl(string? value) =>
+    private static bool BeImageUrl(string? value) => value is not null && (IsHttpUrl(value) || IsSitePath(value));
+
+    private static bool IsHttpUrl(string value) =>
         Uri.TryCreate(value, UriKind.Absolute, out Uri? uri) && (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp);
+
+    /// <summary>Ảnh tự host trên web khách, ví dụ /images/mon/xoi-ga.jpg; chặn "//host" (trỏ ra domain khác) và dấu \.</summary>
+    private static bool IsSitePath(string value) =>
+        value.StartsWith('/') && !value.StartsWith("//", StringComparison.Ordinal) && !value.Contains('\\', StringComparison.Ordinal)
+        && Uri.IsWellFormedUriString(value, UriKind.Relative);
 }
 
 internal sealed class CreateOwnerDishCommandValidator : AbstractValidator<CreateOwnerDishCommand>
