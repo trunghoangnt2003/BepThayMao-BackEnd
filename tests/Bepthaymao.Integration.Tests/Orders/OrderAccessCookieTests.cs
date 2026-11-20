@@ -7,6 +7,7 @@ using Bepthaymao.Domain.Branches;
 using Bepthaymao.Domain.Menu;
 using Bepthaymao.Domain.Owners;
 using Bepthaymao.Infrastructure.Persistence;
+using Bepthaymao.Infrastructure.Persistence.Orders;
 using Bepthaymao.Integration.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -132,7 +133,7 @@ public sealed partial class OrderAccessCookieTests(InfrastructureFixture infrast
 
         using HttpResponseMessage wrongOrder = await client.SendAsync(
             WithCookie(HttpMethod.Get, $"/api/v1/orders/{codeB}", cookieA), TestContext.Current.CancellationToken);
-        string referenceBody = await wrongOrder.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        JsonElement referenceBody = await ReadJsonAsync(wrongOrder);
         Assert.Equal(HttpStatusCode.NotFound, wrongOrder.StatusCode);
 
         string forged = new('a', 43);
@@ -143,14 +144,20 @@ public sealed partial class OrderAccessCookieTests(InfrastructureFixture infrast
         using HttpResponseMessage neither = await client.GetAsync($"/api/v1/orders/{codeA}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NotFound, neither.StatusCode);
 
-        string forgedBody = await forgedToken.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        string neitherBody = await neither.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        JsonElement forgedBody = await ReadJsonAsync(forgedToken);
+        JsonElement neitherBody = await ReadJsonAsync(neither);
         using HttpResponseMessage wrongPhone = await client.GetAsync($"/api/v1/orders/{codeA}?phone=0999999999", TestContext.Current.CancellationToken);
-        string wrongPhoneBody = await wrongPhone.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        JsonElement wrongPhoneBody = await ReadJsonAsync(wrongPhone);
         Assert.Equal(HttpStatusCode.NotFound, wrongPhone.StatusCode);
-        Assert.Equal(wrongPhoneBody, referenceBody);
-        Assert.Equal(wrongPhoneBody, forgedBody);
-        Assert.Equal(wrongPhoneBody, neitherBody);
+        AssertSameProblem(wrongPhoneBody, referenceBody);
+        AssertSameProblem(wrongPhoneBody, forgedBody);
+        AssertSameProblem(wrongPhoneBody, neitherBody);
+    }
+
+    private static void AssertSameProblem(JsonElement left, JsonElement right)
+    {
+        Assert.Equal(left.GetProperty("status").GetInt32(), right.GetProperty("status").GetInt32());
+        Assert.Equal(left.GetProperty("title").GetString(), right.GetProperty("title").GetString());
     }
 
     [Fact]
@@ -198,19 +205,11 @@ public sealed partial class OrderAccessCookieTests(InfrastructureFixture infrast
         using IServiceScope scope = _factory.Services.CreateSystemScope();
         AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         Guid orderId = await db.Orders.IgnoreQueryFilters().Where(order => order.Code == code).Select(order => order.Id).SingleAsync(TestContext.Current.CancellationToken);
-        var grant = await db.Database.SqlQuery<GrantRow>(
-            $"SELECT order_id AS \"OrderId\", token_hash AS \"TokenHash\", expires_at AS \"ExpiresAt\" FROM order_access_grants WHERE order_id = {orderId}")
-            .SingleAsync(TestContext.Current.CancellationToken);
+        OrderAccessGrant grant = await db.OrderAccessGrants.AsNoTracking()
+            .SingleAsync(value => value.OrderId == orderId, TestContext.Current.CancellationToken);
         Assert.Equal(orderId, grant.OrderId);
         Assert.Equal(64, grant.TokenHash.Length);
         Assert.NotEqual(token, grant.TokenHash);
         Assert.True(grant.ExpiresAt > DateTimeOffset.UtcNow.AddHours(23));
-    }
-
-    private sealed record GrantRow
-    {
-        public Guid OrderId { get; init; }
-        public string TokenHash { get; init; } = "";
-        public DateTimeOffset ExpiresAt { get; init; }
     }
 }

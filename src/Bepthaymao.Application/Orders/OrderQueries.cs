@@ -9,9 +9,9 @@ using Bepthaymao.Domain.Orders;
 
 namespace Bepthaymao.Application.Orders;
 
-public sealed record GetOrderQuery(string Code, string Phone) : IQuery<OrderTrackingDto>;
+public sealed record GetOrderQuery(string Code, string? Phone, IReadOnlyList<string> AccessTokens) : IQuery<OrderTrackingDto>;
 
-public sealed record CancelOrderCommand(string Code, string Phone) : ICommand<OrderDto>;
+public sealed record CancelOrderCommand(string Code, string? Phone, IReadOnlyList<string> AccessTokens) : ICommand<OrderDto>;
 
 /// <summary>
 /// Quản lý: đơn cơ sở mình (không nhận branchId). Owner: mọi cơ sở của mình hoặc một cơ sở; branchId của Owner khác trả 403 (FR-003a).
@@ -20,20 +20,23 @@ public sealed record ListOrdersQuery(Guid? BranchId, OrderStatus? Status, Paymen
 
 internal static class PublicOrderAccess
 {
-    /// <summary>Sai mã, sai số điện thoại và đơn không tồn tại đều trả cùng một 404 (không lộ tồn tại, K5).</summary>
-    public static async Task<Order> FindAsync(IOrderStore store, string code, string phone, CancellationToken cancellationToken)
+    /// <summary>Sai mã, sai số điện thoại, token sai/hết hạn/của đơn khác và đơn không tồn tại đều trả cùng một 404 (không lộ tồn tại, K5).</summary>
+    public static async Task<Order> FindAsync(IOrderStore store, IOrderAccessGrants grants, string code, string? phone,
+        IReadOnlyList<string> accessTokens, CancellationToken cancellationToken)
     {
         Order? order = await store.FindByCodeAsync(OrderCodes.Normalize(code), cancellationToken);
-        bool phoneMatches = PhoneNumbers.SameNumber(order?.CustomerPhone ?? "0000000000", phone);
-        return order is not null && phoneMatches ? order : throw new NotFoundException();
+        bool phoneMatches = !string.IsNullOrWhiteSpace(phone) && PhoneNumbers.SameNumber(order?.CustomerPhone ?? "0000000000", phone);
+        bool tokenMatches = await grants.AllowsAsync(order?.Id ?? Guid.Empty, accessTokens, cancellationToken);
+        return order is not null && (phoneMatches || tokenMatches) ? order : throw new NotFoundException();
     }
 }
 
-internal sealed class GetOrderQueryHandler(IOrderStore store, IPaymentQrService qr, TimeProvider clock) : IQueryHandler<GetOrderQuery, OrderTrackingDto>
+internal sealed class GetOrderQueryHandler(IOrderStore store, IOrderAccessGrants grants, IPaymentQrService qr, TimeProvider clock)
+    : IQueryHandler<GetOrderQuery, OrderTrackingDto>
 {
     public async Task<OrderTrackingDto> Handle(GetOrderQuery query, CancellationToken cancellationToken)
     {
-        Order order = await PublicOrderAccess.FindAsync(store, query.Code, query.Phone, cancellationToken);
+        Order order = await PublicOrderAccess.FindAsync(store, grants, query.Code, query.Phone, query.AccessTokens, cancellationToken);
         OrderBranchInfo branch = (await store.BranchesAsync([order.BranchId], cancellationToken))[order.BranchId];
         PaymentDto? payment = order.IsPaymentOpen(clock.GetUtcNow()) && branch.BankCode is not null && branch.BankAccountNo is not null
             ? new(qr.CreateQrUrl(branch.BankCode, branch.BankAccountNo, order.ItemsTotal, order.Code), order.ItemsTotal, order.Code, order.ExpiresAt)
@@ -42,11 +45,12 @@ internal sealed class GetOrderQueryHandler(IOrderStore store, IPaymentQrService 
     }
 }
 
-internal sealed class CancelOrderCommandHandler(IOrderStore store, IUnitOfWork unitOfWork, TimeProvider clock) : ICommandHandler<CancelOrderCommand, OrderDto>
+internal sealed class CancelOrderCommandHandler(IOrderStore store, IOrderAccessGrants grants, IUnitOfWork unitOfWork, TimeProvider clock)
+    : ICommandHandler<CancelOrderCommand, OrderDto>
 {
     public async Task<OrderDto> Handle(CancelOrderCommand command, CancellationToken cancellationToken)
     {
-        Order order = await PublicOrderAccess.FindAsync(store, command.Code, command.Phone, cancellationToken);
+        Order order = await PublicOrderAccess.FindAsync(store, grants, command.Code, command.Phone, command.AccessTokens, cancellationToken);
         try
         {
             order.CancelByCustomer(clock.GetUtcNow());

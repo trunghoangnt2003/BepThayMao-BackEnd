@@ -10,6 +10,7 @@ using Bepthaymao.Infrastructure.Payments;
 using Bepthaymao.Infrastructure.Persistence.Menu;
 using Bepthaymao.Infrastructure.Persistence;
 using Bepthaymao.Infrastructure.Persistence.Branches;
+using Bepthaymao.Infrastructure.Persistence.Orders;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -33,6 +34,7 @@ public static class DependencyInjection
         services.AddScoped<IShopStore, ShopStore>();
         services.AddScoped<ILegalStore, LegalStore>();
         services.AddScoped<IOrderStore, OrderStore>();
+        services.AddScoped<IOrderAccessGrants, OrderAccessGrantService>();
         services.AddScoped<IOverviewReader, OverviewReader>();
         services.AddSingleton<IPaymentQrService, VietQrService>();
         services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<AppDbContext>());

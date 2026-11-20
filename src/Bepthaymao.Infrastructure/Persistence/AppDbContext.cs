@@ -8,6 +8,7 @@ using Bepthaymao.Domain.Orders;
 using Bepthaymao.Domain.Shop;
 using Bepthaymao.Domain.Owners;
 using Bepthaymao.Infrastructure.Identity;
+using Bepthaymao.Infrastructure.Persistence.Orders;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -33,6 +34,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataSc
     public DbSet<ShopLegal> ShopLegals => Set<ShopLegal>();
     public DbSet<ShopPolicy> ShopPolicies => Set<ShopPolicy>();
     public DbSet<Order> Orders => Set<Order>();
+    public DbSet<OrderAccessGrant> OrderAccessGrants => Set<OrderAccessGrant>();
     public const string BranchScope = "BranchScope";
 
     // Owner là superadmin trên cơ sở của mình (spec FR-003a): thấy bản ghi của mọi cơ sở có Branch.OwnerId trùng claim,
@@ -196,6 +198,16 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataSc
             item.Property(value => value.Id).ValueGeneratedNever();
             item.Property(value => value.DishName).HasMaxLength(Dish.NameMaxLength);
             item.HasOne<Dish>().WithMany().HasForeignKey(value => value.DishId).OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<OrderAccessGrant>(grant =>
+        {
+            grant.ToTable("order_access_grants");
+            grant.HasKey(value => value.Id);
+            grant.Property(value => value.Id).ValueGeneratedNever();
+            grant.Property(value => value.TokenHash).HasMaxLength(64);
+            grant.HasIndex(value => value.TokenHash).IsUnique();
+            grant.HasIndex(value => value.OrderId);
+            grant.HasOne<Order>().WithMany().HasForeignKey(value => value.OrderId).OnDelete(DeleteBehavior.Cascade);
         });
     }
     async Task IUnitOfWork.SaveChangesAsync(CancellationToken cancellationToken) => await SaveChangesAsync(cancellationToken);

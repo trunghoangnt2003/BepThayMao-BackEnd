@@ -42,29 +42,30 @@ public static class OrderEndpoints
             .WithDescription("Mọi cơ sở đang hoạt động kèm khoảng cách, giờ, cảnh báo giao hôm sau và món đang hết; có tọa độ thì gợi ý cơ sở gần nhất.")
             .AllowAnonymous().RequireRateLimiting(RateLimitPolicies.Public)
             .ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status429TooManyRequests);
-        v1.MapPost("/orders", async Task<Created<OrderCreatedDto>> (CreateOrderRequest request,
-            [FromServices] ICommandHandler<CreateOrderCommand, OrderCreatedDto> handler, CancellationToken cancellationToken) =>
+        v1.MapPost("/orders", async Task<Created<OrderCreatedDto>> (CreateOrderRequest request, HttpContext context,
+            [FromServices] ICommandHandler<CreateOrderCommand, OrderCreatedResult> handler, CancellationToken cancellationToken) =>
         {
-            OrderCreatedDto created = await handler.Handle(new(request.CustomerName, request.CustomerPhone, request.DeliveryAddress, request.BranchId,
+            OrderCreatedResult result = await handler.Handle(new(request.CustomerName, request.CustomerPhone, request.DeliveryAddress, request.BranchId,
                 request.DeliveryLat, request.DeliveryLng, request.Note, request.NextDayAcknowledged,
                 [.. (request.Items ?? []).Select(item => new CreateOrderItemData(item.DishId, item.Quantity))]), cancellationToken);
-            return TypedResults.Created($"/api/v1/orders/{created.Order.Code}", created);
+            OrderAccessCookie.Append(context.Response, OrderAccessCookie.Read(context.Request), result.Access);
+            return TypedResults.Created($"/api/v1/orders/{result.Created.Order.Code}", result.Created);
         }).WithName("createOrder").WithTags("Orders").WithSummary("Tạo đơn (khách vãng lai hoặc đã đăng nhập)")
             .WithDescription("Đơn gán cho cơ sở khách chọn; 409 khi ngoài giờ chưa xác nhận, cơ sở không nhận đơn hoặc món đang hết (unavailableDishIds).")
             .AllowAnonymous().RequireRateLimiting(RateLimitPolicies.Public)
             .ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status409Conflict).ProducesProblem(StatusCodes.Status429TooManyRequests);
-        v1.MapGet("/orders/{code}", async (string code, [FromQuery] string phone,
+        v1.MapGet("/orders/{code}", async (string code, [FromQuery] string? phone, HttpContext context,
             [FromServices] IQueryHandler<GetOrderQuery, OrderTrackingDto> handler, CancellationToken cancellationToken) =>
-            TypedResults.Ok(await handler.Handle(new(code, phone), cancellationToken)))
-            .WithName("getOrder").WithTags("Orders").WithSummary("Theo dõi đơn bằng mã đơn và số điện thoại")
-            .WithDescription("Sai mã, sai số điện thoại hoặc đơn không tồn tại đều trả 404; payment chỉ có khi còn hạn thanh toán.")
+            TypedResults.Ok(await handler.Handle(new(code, phone, OrderAccessCookie.Read(context.Request)), cancellationToken)))
+            .WithName("getOrder").WithTags("Orders").WithSummary("Theo dõi đơn bằng mã đơn và số điện thoại, hoặc bằng cookie btm_don")
+            .WithDescription("Cần phone khớp hoặc cookie btm_don hợp lệ cho đơn này; mọi thất bại trả cùng một 404; payment chỉ có khi còn hạn thanh toán.")
             .AllowAnonymous().RequireRateLimiting(RateLimitPolicies.Public)
             .ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status429TooManyRequests);
-        v1.MapPost("/orders/{code}/cancel", async (string code, CancelOrderRequest request,
+        v1.MapPost("/orders/{code}/cancel", async (string code, CancelOrderRequest request, HttpContext context,
             [FromServices] ICommandHandler<CancelOrderCommand, OrderDto> handler, CancellationToken cancellationToken) =>
-            TypedResults.Ok(await handler.Handle(new(code, request.Phone), cancellationToken)))
-            .WithName("cancelOrder").WithTags("Orders").WithSummary("Khách hủy đơn chưa thanh toán (xác thực bằng mã đơn và số điện thoại)")
-            .WithDescription("409 khi đơn đã thanh toán hoặc không còn hủy được.")
+            TypedResults.Ok(await handler.Handle(new(code, request.Phone, OrderAccessCookie.Read(context.Request)), cancellationToken)))
+            .WithName("cancelOrder").WithTags("Orders").WithSummary("Khách hủy đơn chưa thanh toán (xác thực bằng mã đơn và số điện thoại, hoặc cookie btm_don)")
+            .WithDescription("phone bắt buộc khi không có cookie btm_don hợp lệ; 409 khi đơn đã thanh toán hoặc không còn hủy được.")
             .AllowAnonymous().RequireRateLimiting(RateLimitPolicies.Public)
             .ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict).ProducesProblem(StatusCodes.Status429TooManyRequests);
 

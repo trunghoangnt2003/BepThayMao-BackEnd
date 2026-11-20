@@ -18,7 +18,10 @@ public sealed record CreateOrderItemData(Guid DishId, int Quantity);
 
 public sealed record CreateOrderCommand(string CustomerName, string CustomerPhone, string DeliveryAddress, Guid BranchId,
     double? DeliveryLat, double? DeliveryLng, string? Note, bool NextDayAcknowledged, IReadOnlyList<CreateOrderItemData> Items)
-    : ICommand<OrderCreatedDto>;
+    : ICommand<OrderCreatedResult>;
+
+/// <summary>Đơn vừa tạo kèm token gắn đơn cho cookie btm_don (Api đặt cookie, không đưa token vào JSON).</summary>
+public sealed record OrderCreatedResult(OrderCreatedDto Created, IssuedOrderAccess Access);
 
 /// <summary>409 có danh sách món đang hết để giao diện nêu tên món (OrderConflictProblem).</summary>
 public sealed class DishesUnavailableException(IReadOnlyList<Guid> dishIds)
@@ -85,10 +88,11 @@ internal sealed class BranchOptionsQueryHandler(IMenuStore menu, TimeProvider cl
     internal static string Format(TimeOnly time) => time.ToString("HH:mm", CultureInfo.InvariantCulture);
 }
 
-internal sealed class CreateOrderCommandHandler(IMenuStore menu, IOrderStore orders, IPaymentQrService qr, IUnitOfWork unitOfWork, TimeProvider clock)
-    : ICommandHandler<CreateOrderCommand, OrderCreatedDto>
+internal sealed class CreateOrderCommandHandler(IMenuStore menu, IOrderStore orders, IPaymentQrService qr, IOrderAccessGrants grants,
+    IUnitOfWork unitOfWork, TimeProvider clock)
+    : ICommandHandler<CreateOrderCommand, OrderCreatedResult>
 {
-    public async Task<OrderCreatedDto> Handle(CreateOrderCommand command, CancellationToken cancellationToken)
+    public async Task<OrderCreatedResult> Handle(CreateOrderCommand command, CancellationToken cancellationToken)
     {
         MenuSnapshot snapshot = await MenuSnapshot.LoadAsync(menu, cancellationToken);
         ActiveBranchInfo branch = snapshot.Branches.FirstOrDefault(value => value.Id == command.BranchId)
@@ -111,9 +115,11 @@ internal sealed class CreateOrderCommandHandler(IMenuStore menu, IOrderStore ord
                 command.DeliveryLat, command.DeliveryLng, distance, command.Note),
             items, !open, OpeningHours.DeliveryDate(branch.OpenTime, branch.CloseTime, now), now);
         orders.Add(order);
+        IssuedOrderAccess access = grants.Issue(order.Id);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         PaymentDto payment = new(qr.CreateQrUrl(branch.BankCode!, branch.BankAccountNo!, order.ItemsTotal, order.Code), order.ItemsTotal, order.Code, order.ExpiresAt);
-        return new(order.ToDto(branch.Name, includeCustomer: false), payment, OrderMapping.ShippingNote);
+        OrderCreatedDto created = new(order.ToDto(branch.Name, includeCustomer: false), payment, OrderMapping.ShippingNote);
+        return new(created, access);
     }
 
     private async Task<string> NewCodeAsync(CancellationToken cancellationToken)

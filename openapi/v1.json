@@ -517,8 +517,8 @@
         "tags": [
           "Orders"
         ],
-        "summary": "Theo dõi đơn bằng mã đơn và số điện thoại",
-        "description": "Sai mã, sai số điện thoại hoặc đơn không tồn tại đều trả 404; payment chỉ có khi còn hạn thanh toán.",
+        "summary": "Theo dõi đơn bằng mã đơn và số điện thoại, hoặc bằng cookie btm_don",
+        "description": "Cần phone khớp hoặc cookie btm_don hợp lệ cho đơn này; mọi thất bại trả cùng một 404; payment chỉ có khi còn hạn thanh toán.",
         "operationId": "getOrder",
         "parameters": [
           {
@@ -534,7 +534,6 @@
             "name": "phone",
             "in": "query",
             "description": "",
-            "required": true,
             "schema": {
               "type": "string"
             }
@@ -579,8 +578,8 @@
         "tags": [
           "Orders"
         ],
-        "summary": "Khách hủy đơn chưa thanh toán (xác thực bằng mã đơn và số điện thoại)",
-        "description": "409 khi đơn đã thanh toán hoặc không còn hủy được.",
+        "summary": "Khách hủy đơn chưa thanh toán (xác thực bằng mã đơn và số điện thoại, hoặc cookie btm_don)",
+        "description": "phone bắt buộc khi không có cookie btm_don hợp lệ; 409 khi đơn đã thanh toán hoặc không còn hủy được.",
         "operationId": "cancelOrder",
         "parameters": [
           {
