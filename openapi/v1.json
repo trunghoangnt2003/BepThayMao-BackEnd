@@ -573,6 +573,72 @@
         }
       }
     },
+    "/api/v1/orders/{code}/access": {
+      "post": {
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Khách tra đơn bằng mã và số điện thoại, nhận cookie xem đơn",
+        "description": "Đổi mã đơn + số điện thoại đúng lấy cookie btm_don để xem/hủy đơn mà không cần đặt số điện thoại vào URL; sai mã hoặc sai số trả 404.",
+        "operationId": "grantOrderAccess",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantOrderAccessRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/orders/{code}/cancel": {
       "post": {
         "tags": [
@@ -2920,8 +2986,7 @@
       },
       "CancelOrderRequest": {
         "required": [
-          "code",
-          "phone"
+          "code"
         ],
         "type": "object",
         "properties": {
@@ -2929,7 +2994,10 @@
             "type": "string"
           },
           "phone": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -3139,6 +3207,18 @@
             "type": "integer",
             "format": "int32",
             "default": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "GrantOrderAccessRequest": {
+        "required": [
+          "phone"
+        ],
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string"
           }
         },
         "additionalProperties": false

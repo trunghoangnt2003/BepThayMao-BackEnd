@@ -6,12 +6,24 @@ using Bepthaymao.Application.Branches;
 using Bepthaymao.Domain.Branches;
 using Bepthaymao.Domain.Common;
 using Bepthaymao.Domain.Orders;
+using FluentValidation;
 
 namespace Bepthaymao.Application.Orders;
 
 public sealed record GetOrderQuery(string Code, string? Phone, IReadOnlyList<string> AccessTokens) : IQuery<OrderTrackingDto>;
 
 public sealed record CancelOrderCommand(string Code, string? Phone, IReadOnlyList<string> AccessTokens) : ICommand<OrderDto>;
+
+/// <summary>Khách đổi mã đơn + số điện thoại lấy cookie btm_don (xem/hủy đơn mà không cần phone trên URL).</summary>
+public sealed record GrantOrderAccessCommand(string Code, string Phone) : ICommand<IssuedOrderAccess>;
+
+internal sealed class GrantOrderAccessCommandValidator : AbstractValidator<GrantOrderAccessCommand>
+{
+    public GrantOrderAccessCommandValidator()
+    {
+        RuleFor(command => command.Phone).NotEmpty().WithMessage("Nhập số điện thoại.").MaximumLength(20).WithMessage("Số điện thoại tối đa 20 ký tự.");
+    }
+}
 
 /// <summary>
 /// Quản lý: đơn cơ sở mình (không nhận branchId). Owner: mọi cơ sở của mình hoặc một cơ sở; branchId của Owner khác trả 403 (FR-003a).
@@ -42,6 +54,19 @@ internal sealed class GetOrderQueryHandler(IOrderStore store, IOrderAccessGrants
             ? new(qr.CreateQrUrl(branch.BankCode, branch.BankAccountNo, order.ItemsTotal, order.Code), order.ItemsTotal, order.Code, order.ExpiresAt)
             : null;
         return new(order.ToDto(branch.Name, includeCustomer: false), payment);
+    }
+}
+
+internal sealed class GrantOrderAccessCommandHandler(IOrderStore store, IOrderAccessGrants grants, IUnitOfWork unitOfWork)
+    : ICommandHandler<GrantOrderAccessCommand, IssuedOrderAccess>
+{
+    public async Task<IssuedOrderAccess> Handle(GrantOrderAccessCommand command, CancellationToken cancellationToken)
+    {
+        // Chỉ nhận phone, không nhận token: không cho dùng cookie đang có để đổi lấy cookie khác.
+        Order order = await PublicOrderAccess.FindAsync(store, grants, command.Code, command.Phone, [], cancellationToken);
+        IssuedOrderAccess access = grants.Issue(order.Id);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return access;
     }
 }
 

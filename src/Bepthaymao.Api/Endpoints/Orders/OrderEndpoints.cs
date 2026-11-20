@@ -29,7 +29,10 @@ public sealed record CreateOrderRequest(
     bool NextDayAcknowledged = false);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record CancelOrderRequest([property: JsonRequired] string Code, [property: JsonRequired] string Phone);
+public sealed record CancelOrderRequest([property: JsonRequired] string Code, string? Phone = null);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record GrantOrderAccessRequest([property: JsonRequired] string Phone);
 
 public static class OrderEndpoints
 {
@@ -61,6 +64,16 @@ public static class OrderEndpoints
             .WithDescription("Cần phone khớp hoặc cookie btm_don hợp lệ cho đơn này; mọi thất bại trả cùng một 404; payment chỉ có khi còn hạn thanh toán.")
             .AllowAnonymous().RequireRateLimiting(RateLimitPolicies.Public)
             .ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status429TooManyRequests);
+        v1.MapPost("/orders/{code}/access", async Task<NoContent> (string code, GrantOrderAccessRequest request, HttpContext context,
+            [FromServices] ICommandHandler<GrantOrderAccessCommand, IssuedOrderAccess> handler, CancellationToken cancellationToken) =>
+        {
+            IssuedOrderAccess access = await handler.Handle(new(code, request.Phone), cancellationToken);
+            OrderAccessCookie.Append(context.Response, OrderAccessCookie.Read(context.Request), access);
+            return TypedResults.NoContent();
+        }).WithName("grantOrderAccess").WithTags("Orders").WithSummary("Khách tra đơn bằng mã và số điện thoại, nhận cookie xem đơn")
+            .WithDescription("Đổi mã đơn + số điện thoại đúng lấy cookie btm_don để xem/hủy đơn mà không cần đặt số điện thoại vào URL; sai mã hoặc sai số trả 404.")
+            .AllowAnonymous().RequireRateLimiting(RateLimitPolicies.Public)
+            .ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status429TooManyRequests);
         v1.MapPost("/orders/{code}/cancel", async (string code, CancelOrderRequest request, HttpContext context,
             [FromServices] ICommandHandler<CancelOrderCommand, OrderDto> handler, CancellationToken cancellationToken) =>
             TypedResults.Ok(await handler.Handle(new(code, request.Phone, OrderAccessCookie.Read(context.Request)), cancellationToken)))
