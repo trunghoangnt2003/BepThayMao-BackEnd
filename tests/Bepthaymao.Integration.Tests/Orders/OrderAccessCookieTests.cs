@@ -212,4 +212,109 @@ public sealed partial class OrderAccessCookieTests(InfrastructureFixture infrast
         Assert.NotEqual(token, grant.TokenHash);
         Assert.True(grant.ExpiresAt > DateTimeOffset.UtcNow.AddHours(23));
     }
+
+    [Fact]
+    public async Task LookupWithMatchingPhoneGrantsCookie()
+    {
+        HttpClient client = _factory.CreateClient();
+        (_, JsonElement body, _) = await PlaceAsync(client);
+        string code = body.GetProperty("order").GetProperty("code").GetString()!;
+
+        using HttpResponseMessage access = await client.PostAsJsonAsync($"/api/v1/orders/{code}/access",
+            new { phone = "0901 234 567" }, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.NoContent, access.StatusCode);
+        string? setCookie = FirstSetCookie(access);
+        Assert.NotNull(setCookie);
+        string cookie = CookieValue(setCookie!);
+
+        using HttpResponseMessage tracking = await client.SendAsync(
+            WithCookie(HttpMethod.Get, $"/api/v1/orders/{code}", cookie), TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, tracking.StatusCode);
+    }
+
+    [Fact]
+    public async Task LookupWithWrongPhoneOrCodeReturns404WithoutCookie()
+    {
+        HttpClient client = _factory.CreateClient();
+        (_, JsonElement body, _) = await PlaceAsync(client);
+        string code = body.GetProperty("order").GetProperty("code").GetString()!;
+
+        using HttpResponseMessage wrongPhone = await client.PostAsJsonAsync($"/api/v1/orders/{code}/access",
+            new { phone = "0999999999" }, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.NotFound, wrongPhone.StatusCode);
+        Assert.Null(FirstSetCookie(wrongPhone));
+
+        using HttpResponseMessage wrongCode = await client.PostAsJsonAsync("/api/v1/orders/BTM000000/access",
+            new { phone = "0901234567" }, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.NotFound, wrongCode.StatusCode);
+        Assert.Null(FirstSetCookie(wrongCode));
+    }
+
+    [Fact]
+    public async Task CookieKeepsFiveNewestTokens()
+    {
+        HttpClient client = _factory.CreateClient();
+        (_, JsonElement body, _) = await PlaceAsync(client);
+        string code = body.GetProperty("order").GetProperty("code").GetString()!;
+        List<string> tokens = [];
+        for (int i = 0; i < 5; i++)
+        {
+            using HttpResponseMessage grant = await client.PostAsJsonAsync($"/api/v1/orders/{code}/access",
+                new { phone = "0901 234 567" }, TestContext.Current.CancellationToken);
+            tokens.Insert(0, CookieValue(FirstSetCookie(grant)!));
+        }
+        string cookieHeader = string.Join('.', tokens);
+        using HttpRequestMessage sixth = new(HttpMethod.Post, $"/api/v1/orders/{code}/access")
+        {
+            Content = JsonContent.Create(new { phone = "0901 234 567" }),
+        };
+        sixth.Headers.Add("Cookie", $"btm_don={cookieHeader}");
+        using HttpResponseMessage sixthResponse = await client.SendAsync(sixth, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.NoContent, sixthResponse.StatusCode);
+        string newCookie = CookieValue(FirstSetCookie(sixthResponse)!);
+        string[] newTokens = newCookie.Split('.');
+        Assert.Equal(5, newTokens.Length);
+        Assert.DoesNotContain(tokens[^1], newTokens);
+        Assert.DoesNotContain(newTokens[0], tokens);
+        Assert.Equal(tokens[0], newTokens[1]);
+    }
+
+    [Fact]
+    public async Task CancelWithCookieOnly()
+    {
+        HttpClient client = _factory.CreateClient();
+        (_, JsonElement bodyA, string? setCookieA) = await PlaceAsync(client, "0901 111 111");
+        (_, JsonElement bodyB, _) = await PlaceAsync(client, "0902 222 222");
+        string codeA = bodyA.GetProperty("order").GetProperty("code").GetString()!;
+        string codeB = bodyB.GetProperty("order").GetProperty("code").GetString()!;
+        string cookieA = CookieValue(setCookieA!);
+
+        using HttpRequestMessage cancelRequest = WithCookie(HttpMethod.Post, $"/api/v1/orders/{codeA}/cancel", cookieA, new { code = codeA });
+        using HttpResponseMessage cancelled = await client.SendAsync(cancelRequest, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, cancelled.StatusCode);
+        Assert.Equal("Cancelled", (await ReadJsonAsync(cancelled)).GetProperty("status").GetString());
+
+        using HttpRequestMessage again = WithCookie(HttpMethod.Post, $"/api/v1/orders/{codeA}/cancel", cookieA, new { code = codeA });
+        using HttpResponseMessage againResponse = await client.SendAsync(again, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.Conflict, againResponse.StatusCode);
+
+        using HttpRequestMessage wrongOrder = WithCookie(HttpMethod.Post, $"/api/v1/orders/{codeB}/cancel", cookieA, new { code = codeB });
+        using HttpResponseMessage wrongOrderResponse = await client.SendAsync(wrongOrder, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.NotFound, wrongOrderResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task PhoneFlowStillWorks()
+    {
+        HttpClient client = _factory.CreateClient();
+        (_, JsonElement body, _) = await PlaceAsync(client);
+        string code = body.GetProperty("order").GetProperty("code").GetString()!;
+
+        using HttpResponseMessage tracking = await client.GetAsync($"/api/v1/orders/{code}?phone=0901234567", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, tracking.StatusCode);
+
+        using HttpResponseMessage cancelled = await client.PostAsJsonAsync($"/api/v1/orders/{code}/cancel",
+            new { code, phone = "0901234567" }, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, cancelled.StatusCode);
+    }
 }
