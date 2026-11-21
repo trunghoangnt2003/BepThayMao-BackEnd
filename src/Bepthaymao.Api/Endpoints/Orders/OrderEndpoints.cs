@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Bepthaymao.Api.Endpoints.Menu;
 using Bepthaymao.Api.Security;
+using Bepthaymao.Application.Abstractions.Errors;
 using Bepthaymao.Application.Abstractions.Messaging;
 using Bepthaymao.Application.Orders;
 using Bepthaymao.Application.Overview;
@@ -45,16 +46,32 @@ public static class OrderEndpoints
             .WithDescription("Mọi cơ sở đang hoạt động kèm khoảng cách, giờ, cảnh báo giao hôm sau và món đang hết; có tọa độ thì gợi ý cơ sở gần nhất.")
             .AllowAnonymous().RequireRateLimiting(RateLimitPolicies.Public)
             .ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status429TooManyRequests);
-        v1.MapPost("/orders", async Task<Created<OrderCreatedDto>> (CreateOrderRequest request, HttpContext context,
-            [FromServices] ICommandHandler<CreateOrderCommand, OrderCreatedResult> handler, CancellationToken cancellationToken) =>
+        v1.MapPost("/orders", async Task<Results<Created<OrderCreatedDto>, Ok<OrderCreatedDto>>> (CreateOrderRequest request, HttpContext context,
+            [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey, [FromServices] ICommandHandler<CreateOrderCommand, OrderCreatedResult> handler,
+            [FromServices] IConfiguration configuration, CancellationToken cancellationToken) =>
         {
+            Guid? parsedKey = null;
+            if (!string.IsNullOrWhiteSpace(idempotencyKey))
+            {
+                if (!Guid.TryParse(idempotencyKey, out Guid parsed))
+                    throw new ValidationException(new Dictionary<string, string[]> { ["idempotencyKey"] = ["Idempotency-Key phải là UUID."] });
+                parsedKey = parsed;
+            }
+            int windowSeconds = configuration.GetValue("Orders:DuplicateWindowSeconds", 120);
             OrderCreatedResult result = await handler.Handle(new(request.CustomerName, request.CustomerPhone, request.DeliveryAddress, request.BranchId,
                 request.DeliveryLat, request.DeliveryLng, request.Note, request.NextDayAcknowledged,
-                [.. (request.Items ?? []).Select(item => new CreateOrderItemData(item.DishId, item.Quantity))]), cancellationToken);
+                [.. (request.Items ?? []).Select(item => new CreateOrderItemData(item.DishId, item.Quantity))], parsedKey, windowSeconds), cancellationToken);
             OrderAccessCookie.Append(context.Response, OrderAccessCookie.Read(context.Request), result.Access);
+            if (result.Replayed)
+            {
+                context.Response.Headers["Idempotent-Replayed"] = "true";
+                return TypedResults.Ok(result.Created);
+            }
             return TypedResults.Created($"/api/v1/orders/{result.Created.Order.Code}", result.Created);
         }).WithName("createOrder").WithTags("Orders").WithSummary("Tạo đơn (khách vãng lai hoặc đã đăng nhập)")
-            .WithDescription("Đơn gán cho cơ sở khách chọn; 409 khi ngoài giờ chưa xác nhận, cơ sở không nhận đơn hoặc món đang hết (unavailableDishIds).")
+            .WithDescription("Đơn gán cho cơ sở khách chọn; 409 khi ngoài giờ chưa xác nhận, cơ sở không nhận đơn hoặc món đang hết (unavailableDishIds). " +
+                "Gửi lặp cùng Idempotency-Key, hoặc trùng số điện thoại + cơ sở + món trong cửa sổ khi đơn trước còn chờ thanh toán: trả 200 kèm header " +
+                "Idempotent-Replayed thay vì tạo đơn mới.")
             .AllowAnonymous().RequireRateLimiting(RateLimitPolicies.Public)
             .ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status409Conflict).ProducesProblem(StatusCodes.Status429TooManyRequests);
         v1.MapGet("/orders/{code}", async (string code, [FromQuery] string? phone, HttpContext context,

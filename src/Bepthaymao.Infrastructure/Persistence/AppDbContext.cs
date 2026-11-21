@@ -185,9 +185,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataSc
             order.Property(value => value.CancelReason).HasMaxLength(50);
             order.Property(value => value.Status).HasConversion<string>().HasMaxLength(20);
             order.Property(value => value.PaymentStatus).HasConversion<string>().HasMaxLength(20);
+            order.Property(value => value.DedupeHash).HasMaxLength(64).HasDefaultValue("");
             order.HasOne<Branch>().WithMany().HasForeignKey(value => value.BranchId).OnDelete(DeleteBehavior.Restrict);
             order.HasIndex(value => new { value.BranchId, value.Status, value.CreatedAt });
             order.HasIndex(value => new { value.Status, value.ExpiresAt });
+            order.HasIndex(value => value.IdempotencyKey).IsUnique().HasFilter("idempotency_key IS NOT NULL");
+            order.HasIndex(value => new { value.DedupeHash, value.CreatedAt });
             order.HasMany(value => value.Items).WithOne().HasForeignKey(item => item.OrderId).OnDelete(DeleteBehavior.Cascade);
             order.Navigation(value => value.Items).UsePropertyAccessMode(PropertyAccessMode.Field);
         });

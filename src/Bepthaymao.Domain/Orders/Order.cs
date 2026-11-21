@@ -49,10 +49,12 @@ public sealed class Order : IBranchScoped
     public DateTimeOffset? CancelledAt { get; private set; }
     public string? CancelReason { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
+    public Guid? IdempotencyKey { get; private set; }
+    public string DedupeHash { get; private set; } = "";
     public IReadOnlyList<OrderItem> Items => _items;
 
     public static Order Place(Guid id, string code, Guid branchId, OrderCustomer customer, IReadOnlyList<OrderItem> items,
-        bool isNextDay, DateOnly deliveryDate, DateTimeOffset now)
+        bool isNextDay, DateOnly deliveryDate, DateTimeOffset now, Guid? idempotencyKey = null, string dedupeHash = "")
     {
         if (items.Count == 0) throw new DomainRuleException("items", "Đơn phải có ít nhất một món.");
         Order order = new()
@@ -75,6 +77,8 @@ public sealed class Order : IBranchScoped
             NextDayAcknowledgedAt = isNextDay ? now.ToUniversalTime() : null,
             ExpiresAt = now.ToUniversalTime() + PaymentWindow,
             CreatedAt = now.ToUniversalTime(),
+            IdempotencyKey = idempotencyKey,
+            DedupeHash = dedupeHash,
         };
         order._items.AddRange(items);
         return order;

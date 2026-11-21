@@ -15,6 +15,13 @@ public interface IOrderStore
         CancellationToken cancellationToken);
     /// <summary>Tên và tài khoản nhận tiền của cơ sở, đọc ngoài filter (cơ sở có thể đã tắt sau khi đặt).</summary>
     Task<IReadOnlyDictionary<Guid, OrderBranchInfo>> BranchesAsync(IEnumerable<Guid> branchIds, CancellationToken cancellationToken);
+    /// <summary>Khóa advisory trong transaction đang mở (chống tạo đơn trùng, T-02-29): theo Idempotency-Key nếu có, rồi theo
+    /// dấu vân tay nội dung. Thứ tự cố định khóa trước, nội dung sau nên không tạo vòng chờ.</summary>
+    Task LockDedupeAsync(string dedupeHash, Guid? idempotencyKey, CancellationToken cancellationToken);
+    /// <summary>Đơn đã tạo trước đó với cùng Idempotency-Key, nếu có (bất kể trạng thái).</summary>
+    Task<Order?> FindByIdempotencyKeyAsync(Guid key, CancellationToken cancellationToken);
+    /// <summary>Đơn PendingPayment gần nhất cùng dấu vân tay nội dung, tạo sau <paramref name="since"/>.</summary>
+    Task<Order?> FindRecentPendingByDedupeHashAsync(string dedupeHash, DateTimeOffset since, CancellationToken cancellationToken);
 }
 
 public sealed record OrderBranchInfo(Guid Id, string Name, string? BankCode, string? BankAccountNo);
@@ -115,6 +122,20 @@ public static class Distance
         double dLng = Radians(lng2 - lng1);
         double a = Math.Pow(Math.Sin(dLat / 2), 2) + Math.Cos(Radians(lat1)) * Math.Cos(Radians(lat2)) * Math.Pow(Math.Sin(dLng / 2), 2);
         return Math.Round(_earthRadiusKm * 2 * Math.Asin(Math.Min(1, Math.Sqrt(a))), 1);
+    }
+}
+
+/// <summary>Dấu vân tay nội dung đơn để chống trùng (T-02-29): cùng khách, cơ sở, món/số lượng → cùng hash.</summary>
+public static class OrderDedupe
+{
+    public static string ComputeHash(string normalizedPhone, Guid branchId, IReadOnlyList<CreateOrderItemData> items)
+    {
+        string itemsPart = string.Join(',', items.GroupBy(item => item.DishId)
+            .Select(group => (DishId: group.Key, Quantity: group.Sum(item => item.Quantity)))
+            .OrderBy(pair => pair.DishId)
+            .Select(pair => $"{pair.DishId}:{pair.Quantity}"));
+        string fingerprint = $"{normalizedPhone}|{branchId}|{itemsPart}";
+        return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(fingerprint)));
     }
 }
 

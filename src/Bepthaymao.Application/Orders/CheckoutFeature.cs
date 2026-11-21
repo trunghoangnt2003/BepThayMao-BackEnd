@@ -17,11 +17,13 @@ public sealed record BranchOptionDto(Guid BranchId, string Name, string Address,
 public sealed record CreateOrderItemData(Guid DishId, int Quantity);
 
 public sealed record CreateOrderCommand(string CustomerName, string CustomerPhone, string DeliveryAddress, Guid BranchId,
-    double? DeliveryLat, double? DeliveryLng, string? Note, bool NextDayAcknowledged, IReadOnlyList<CreateOrderItemData> Items)
+    double? DeliveryLat, double? DeliveryLng, string? Note, bool NextDayAcknowledged, IReadOnlyList<CreateOrderItemData> Items,
+    Guid? IdempotencyKey = null, int DuplicateWindowSeconds = 120)
     : ICommand<OrderCreatedResult>;
 
-/// <summary>Đơn vừa tạo kèm token gắn đơn cho cookie btm_don (Api đặt cookie, không đưa token vào JSON).</summary>
-public sealed record OrderCreatedResult(OrderCreatedDto Created, IssuedOrderAccess Access);
+/// <summary>Đơn vừa tạo (hoặc trả lại nếu gửi trùng/đồng thời/trùng nội dung) kèm token gắn đơn cho cookie btm_don
+/// (Api đặt cookie, không đưa token vào JSON).</summary>
+public sealed record OrderCreatedResult(OrderCreatedDto Created, IssuedOrderAccess Access, bool Replayed);
 
 /// <summary>409 có danh sách món đang hết để giao diện nêu tên món (OrderConflictProblem).</summary>
 public sealed class DishesUnavailableException(IReadOnlyList<Guid> dishIds)
@@ -94,6 +96,46 @@ internal sealed class CreateOrderCommandHandler(IMenuStore menu, IOrderStore ord
 {
     public async Task<OrderCreatedResult> Handle(CreateOrderCommand command, CancellationToken cancellationToken)
     {
+        string normalizedPhone = PhoneNumbers.Normalize(command.CustomerPhone)!;
+        string dedupeHash = OrderDedupe.ComputeHash(normalizedPhone, command.BranchId, command.Items);
+        DateTimeOffset now = clock.GetUtcNow();
+        OrderCreatedResult? result = null;
+        // Một transaction (T-02-29): khóa advisory theo Idempotency-Key rồi theo dấu vân tay nội dung tuần tự hóa các request
+        // trùng; đơn mới được lưu trước khi nhả khóa nên request đang chờ thấy đơn đó. Unique index idempotency_key là lưới cuối.
+        await unitOfWork.ExecuteInTransactionAsync(async token =>
+        {
+            await orders.LockDedupeAsync(dedupeHash, command.IdempotencyKey, token);
+            Order? existing = await FindExistingAsync(command, dedupeHash, now, token);
+            result = existing is null
+                ? await PlaceAsync(command, normalizedPhone, dedupeHash, now, token)
+                : await ReplayAsync(existing, token);
+            await unitOfWork.SaveChangesAsync(token);
+        }, cancellationToken);
+        return result!;
+    }
+
+    private async Task<Order?> FindExistingAsync(CreateOrderCommand command, string dedupeHash, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        if (command.IdempotencyKey is Guid key && await orders.FindByIdempotencyKeyAsync(key, cancellationToken) is Order byKey)
+            return byKey.DedupeHash == dedupeHash
+                ? byKey
+                : throw new ConflictException("idempotencyKey", "Mã chống gửi trùng đã dùng cho một đơn khác.");
+        return await orders.FindRecentPendingByDedupeHashAsync(dedupeHash, now.AddSeconds(-command.DuplicateWindowSeconds), cancellationToken);
+    }
+
+    /// <summary>Trả lại đúng đơn đã được chấp nhận nên không kiểm lại giờ mở, món hết hay xác nhận hôm sau; vẫn cấp cookie
+    /// vì phản hồi đầu có thể đã mất ở trình duyệt.</summary>
+    private async Task<OrderCreatedResult> ReplayAsync(Order order, CancellationToken cancellationToken)
+    {
+        OrderBranchInfo branch = (await orders.BranchesAsync([order.BranchId], cancellationToken))[order.BranchId];
+        if (branch.BankCode is null || branch.BankAccountNo is null)
+            throw new ConflictException("branchId", "Cơ sở này tạm chưa nhận đơn. Hãy chọn cơ sở khác.");
+        return new(Created(order, branch.Name, branch.BankCode, branch.BankAccountNo), grants.Issue(order.Id), Replayed: true);
+    }
+
+    private async Task<OrderCreatedResult> PlaceAsync(CreateOrderCommand command, string normalizedPhone, string dedupeHash, DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
         MenuSnapshot snapshot = await MenuSnapshot.LoadAsync(menu, cancellationToken);
         ActiveBranchInfo branch = snapshot.Branches.FirstOrDefault(value => value.Id == command.BranchId)
             ?? throw new ConflictException("branchId", "Cơ sở này hiện không nhận đơn. Hãy chọn cơ sở khác.");
@@ -102,7 +144,6 @@ internal sealed class CreateOrderCommandHandler(IMenuStore menu, IOrderStore ord
         Guid[] missing = [.. command.Items.Select(item => item.DishId).Distinct()
             .Where(id => !dishes.TryGetValue(id, out Dish? dish) || !MenuRules.IsAvailableAt(dish, branch, snapshot.Unavailable))];
         if (missing.Length > 0) throw new DishesUnavailableException(missing);
-        DateTimeOffset now = clock.GetUtcNow();
         bool open = OpeningHours.IsOpen(branch.OpenTime, branch.CloseTime, now);
         if (!open && !command.NextDayAcknowledged)
             throw new ConflictException("nextDayAcknowledged", "Hãy xác nhận để đặt đơn giao vào ngày hôm sau.");
@@ -111,16 +152,16 @@ internal sealed class CreateOrderCommandHandler(IMenuStore menu, IOrderStore ord
         double? distance = command.DeliveryLat is double lat && command.DeliveryLng is double lng ? Distance.HaversineKm(lat, lng, branch.Lat, branch.Lng) : null;
         string code = await NewCodeAsync(cancellationToken);
         Order order = Order.Place(Guid.CreateVersion7(), code, branch.Id,
-            new(command.CustomerName.Trim(), PhoneNumbers.Normalize(command.CustomerPhone)!, command.DeliveryAddress.Trim(),
-                command.DeliveryLat, command.DeliveryLng, distance, command.Note),
-            items, !open, OpeningHours.DeliveryDate(branch.OpenTime, branch.CloseTime, now), now);
+            new(command.CustomerName.Trim(), normalizedPhone, command.DeliveryAddress.Trim(), command.DeliveryLat, command.DeliveryLng, distance, command.Note),
+            items, !open, OpeningHours.DeliveryDate(branch.OpenTime, branch.CloseTime, now), now, command.IdempotencyKey, dedupeHash);
         orders.Add(order);
-        IssuedOrderAccess access = grants.Issue(order.Id);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-        PaymentDto payment = new(qr.CreateQrUrl(branch.BankCode!, branch.BankAccountNo!, order.ItemsTotal, order.Code), order.ItemsTotal, order.Code, order.ExpiresAt);
-        OrderCreatedDto created = new(order.ToDto(branch.Name, includeCustomer: false), payment, OrderMapping.ShippingNote);
-        return new(created, access);
+        return new(Created(order, branch.Name, branch.BankCode!, branch.BankAccountNo!), grants.Issue(order.Id), Replayed: false);
     }
+
+    private OrderCreatedDto Created(Order order, string branchName, string bankCode, string accountNo) =>
+        new(order.ToDto(branchName, includeCustomer: false),
+            new(qr.CreateQrUrl(bankCode, accountNo, order.ItemsTotal, order.Code), order.ItemsTotal, order.Code, order.ExpiresAt),
+            OrderMapping.ShippingNote);
 
     private async Task<string> NewCodeAsync(CancellationToken cancellationToken)
     {

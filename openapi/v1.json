@@ -456,8 +456,18 @@
           "Orders"
         ],
         "summary": "Tạo đơn (khách vãng lai hoặc đã đăng nhập)",
-        "description": "Đơn gán cho cơ sở khách chọn; 409 khi ngoài giờ chưa xác nhận, cơ sở không nhận đơn hoặc món đang hết (unavailableDishIds).",
+        "description": "Đơn gán cho cơ sở khách chọn; 409 khi ngoài giờ chưa xác nhận, cơ sở không nhận đơn hoặc món đang hết (unavailableDishIds). Gửi lặp cùng Idempotency-Key, hoặc trùng số điện thoại + cơ sở + món trong cửa sổ khi đơn trước còn chờ thanh toán: trả 200 kèm header Idempotent-Replayed thay vì tạo đơn mới.",
         "operationId": "createOrder",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -471,6 +481,16 @@
         "responses": {
           "201": {
             "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderCreatedDto"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
             "content": {
               "application/json": {
                 "schema": {

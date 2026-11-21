@@ -92,4 +92,25 @@ internal sealed class OrderStore(AppDbContext context) : IOrderStore
             .Select(branch => new OrderBranchInfo(branch.Id, branch.Name, branch.BankCode, branch.BankAccountNo))
             .ToDictionaryAsync(branch => branch.Id, cancellationToken);
     }
+
+    public async Task LockDedupeAsync(string dedupeHash, Guid? idempotencyKey, CancellationToken cancellationToken)
+    {
+        if (idempotencyKey is Guid key)
+        {
+            string keyLock = "orders:idempotency:" + key.ToString("N");
+            await context.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({keyLock}, 0))", cancellationToken);
+        }
+        string contentLock = "orders:dedupe:" + dedupeHash;
+        await context.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({contentLock}, 0))", cancellationToken);
+    }
+
+    public Task<Order?> FindByIdempotencyKeyAsync(Guid key, CancellationToken cancellationToken) =>
+        context.Orders.IgnoreQueryFilters([AppDbContext.BranchScope]).Include(order => order.Items)
+            .FirstOrDefaultAsync(order => order.IdempotencyKey == key, cancellationToken);
+
+    public Task<Order?> FindRecentPendingByDedupeHashAsync(string dedupeHash, DateTimeOffset since, CancellationToken cancellationToken) =>
+        context.Orders.IgnoreQueryFilters([AppDbContext.BranchScope]).Include(order => order.Items)
+            .Where(order => order.DedupeHash == dedupeHash && order.Status == OrderStatus.PendingPayment && order.CreatedAt >= since)
+            .OrderByDescending(order => order.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
 }

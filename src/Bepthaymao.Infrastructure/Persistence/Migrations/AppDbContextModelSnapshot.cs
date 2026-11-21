@@ -256,6 +256,14 @@ namespace Bepthaymao.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(15)")
                         .HasColumnName("customer_phone");
 
+                    b.Property<string>("DedupeHash")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasDefaultValue("")
+                        .HasColumnName("dedupe_hash");
+
                     b.Property<string>("DeliveryAddress")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -281,6 +289,10 @@ namespace Bepthaymao.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("ExpiresAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("expires_at");
+
+                    b.Property<Guid?>("IdempotencyKey")
+                        .HasColumnType("uuid")
+                        .HasColumnName("idempotency_key");
 
                     b.Property<bool>("IsNextDay")
                         .HasColumnType("boolean")
@@ -317,6 +329,14 @@ namespace Bepthaymao.Infrastructure.Persistence.Migrations
                     b.HasIndex("Code")
                         .IsUnique()
                         .HasDatabaseName("ix_orders_code");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_orders_idempotency_key")
+                        .HasFilter("idempotency_key IS NOT NULL");
+
+                    b.HasIndex("DedupeHash", "CreatedAt")
+                        .HasDatabaseName("ix_orders_dedupe_hash_created_at");
 
                     b.HasIndex("Status", "ExpiresAt")
                         .HasDatabaseName("ix_orders_status_expires_at");
