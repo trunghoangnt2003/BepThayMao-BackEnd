@@ -2035,6 +2035,111 @@
         ]
       }
     },
+    "/api/v1/owner/dish-images": {
+      "post": {
+        "tags": [
+          "Owner"
+        ],
+        "summary": "Tải ảnh món (JPEG, PNG, WebP, tối đa 2 MB)",
+        "description": "Máy chủ kiểm định dạng bằng nội dung, bỏ EXIF, chuyển WebP, tự đặt tên; ảnh chỉ gắn vào món khi lưu món với imageUrl.",
+        "operationId": "uploadDishImage",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "required": [
+                  "file"
+                ],
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "$ref": "#/components/schemas/IFormFile"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadedImageDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload Too Large",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ]
+      }
+    },
     "/api/v1/owner/shop-content/banners/{bannerId}": {
       "put": {
         "tags": [
@@ -3243,6 +3348,10 @@
         },
         "additionalProperties": false
       },
+      "IFormFile": {
+        "type": "string",
+        "format": "binary"
+      },
       "LegalInputRequest": {
         "type": "object",
         "properties": {
@@ -4293,6 +4402,17 @@
             "$ref": "#/components/schemas/UserRole"
           },
           "identifier": {
+            "type": "string"
+          }
+        }
+      },
+      "UploadedImageDto": {
+        "required": [
+          "imageUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "imageUrl": {
             "type": "string"
           }
         }

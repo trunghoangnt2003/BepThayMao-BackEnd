@@ -114,6 +114,21 @@ public static class MenuEndpoints
         owner.MapGet("/shop-content/banners", async ([FromServices] IQueryHandler<ListOwnerBannersQuery, IReadOnlyList<BannerDto>> handler,
             CancellationToken cancellationToken) => TypedResults.Ok(await handler.Handle(new(), cancellationToken)))
             .WithName("listOwnerBanners").WithSummary("Mọi banner (kể cả đang ẩn)").WithDescription("Mọi banner (kể cả đang ẩn)").ProducesOwnerProblems();
+        // multipart cần Antiforgery theo mặc định; /owner/* xác thực bằng JWT Bearer trong bộ nhớ (cookie refresh chỉ ở Path=/api/v1/auth)
+        // nên không có phiên cookie để CSRF lợi dụng, được phép DisableAntiforgery. Giới hạn 3 MiB đặt cả ở WithFormOptions (multipart)
+        // lẫn RequestSizeLimit (Kestrel mặc định 1 MiB sẽ cắt ngang tệp 1-2 MiB hợp lệ).
+        owner.MapPost("/dish-images", async Task<Created<UploadedImageDto>> (IFormFile file,
+            [FromServices] ICommandHandler<UploadOwnerDishImageCommand, UploadedImageDto> handler, CancellationToken cancellationToken) =>
+        {
+            await using Stream content = file.OpenReadStream();
+            UploadedImageDto image = await handler.Handle(new(content, file.Length), cancellationToken);
+            return TypedResults.Created(image.ImageUrl, image);
+        }).WithName("uploadDishImage").WithSummary("Tải ảnh món (JPEG, PNG, WebP, tối đa 2 MB)")
+            .WithDescription("Máy chủ kiểm định dạng bằng nội dung, bỏ EXIF, chuyển WebP, tự đặt tên; ảnh chỉ gắn vào món khi lưu món với imageUrl.")
+            .DisableAntiforgery().WithFormOptions(multipartBodyLengthLimit: DishImageRules.MultipartLimit)
+            .WithMetadata(new RequestSizeLimitAttribute(DishImageRules.MultipartLimit)).RequireRateLimiting(RateLimitPolicies.Public)
+            .ProducesOwnerProblems().ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status413PayloadTooLarge)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType).ProducesProblem(StatusCodes.Status429TooManyRequests);
         owner.MapPost("/shop-content/banners", async Task<Created<BannerDto>> (BannerInputRequest request,
             [FromServices] ICommandHandler<CreateOwnerBannerCommand, BannerDto> handler, CancellationToken cancellationToken) =>
         {

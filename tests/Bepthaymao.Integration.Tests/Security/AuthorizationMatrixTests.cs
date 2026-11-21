@@ -89,6 +89,7 @@ public sealed partial class AuthorizationMatrixTests(MatrixWorldFixture fixture)
         new("POST", "/owner/dishes", true, false, 201),
         new("PUT", "/owner/dishes/{dishId}", true, false, 200, Owner1Resource: true),
         new("DELETE", "/owner/dishes/{dishId}", true, false, 204, Owner1Resource: true),
+        new("POST", "/owner/dish-images", true, false, 201),
         new("GET", "/owner/branches/{branchId}/dishes", true, true, 200),
         new("PUT", "/owner/branches/{branchId}/dishes/{dishId}/availability", true, true, 200),
         new("GET", "/owner/shop-content/banners", true, false, 200),
@@ -175,9 +176,18 @@ public sealed partial class AuthorizationMatrixTests(MatrixWorldFixture fixture)
         if (path.Contains("{bannerId}", StringComparison.Ordinal))
             path = path.Replace("{bannerId}", (endpoint.Method == "DELETE" ? await fixture.CreateBannerAsync(fixture.World.Owner1Id) : fixture.Owner1Banner).ToString(), StringComparison.Ordinal);
         using HttpRequestMessage request = new(new HttpMethod(endpoint.Method), path);
-        if (endpoint.Method != "GET") request.Content = JsonContent.Create(BodyFor(endpoint, branch));
+        if (endpoint.Key == "POST /owner/dish-images") request.Content = SmallPngForm();
+        else if (endpoint.Method != "GET") request.Content = JsonContent.Create(BodyFor(endpoint, branch));
         using HttpResponseMessage response = await fixture.ClientFor(subject).SendAsync(request, TestContext.Current.CancellationToken);
         return (response.StatusCode, await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    // Upload ảnh nhận multipart, không phải JSON: gửi PNG nhỏ thật để ô hợp lệ ra 201 chứ không phải 400/415 che lỗi phân quyền.
+    private static MultipartFormDataContent SmallPngForm()
+    {
+        ByteArrayContent file = new(ImageFixtures.Png(32, 32));
+        file.Headers.ContentType = new("image/png");
+        return new() { { file, "file", "ma-tran.png" } };
     }
 
     // Thân luôn hợp lệ và không đổi dữ liệu mẫu: một ô lệch quyền không được phép trả 400 che lỗi phân quyền.
