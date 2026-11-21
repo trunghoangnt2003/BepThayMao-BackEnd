@@ -68,6 +68,55 @@ public sealed class DishImageUploadTests(InfrastructureFixture infrastructure) :
         Assert.Equal("/images/mon/cu.jpg", dish.GetProperty("imageUrl").GetString());
     }
 
+    [Fact]
+    public async Task FakeJpegReturns415()
+    {
+        HttpClient owner = await _world.ClientForAsync(AuthSubject.Owner1);
+        using HttpResponseMessage response = await UploadAsync(owner, ImageFixtures.NotAnImage(), "anh.jpg", "image/jpeg");
+        Assert.Equal(HttpStatusCode.UnsupportedMediaType, response.StatusCode);
+        await AssertVietnameseProblemAsync(response, "Chỉ nhận ảnh JPEG, PNG hoặc WebP.");
+    }
+
+    [Fact]
+    public async Task OversizeReturns413()
+    {
+        HttpClient owner = await _world.ClientForAsync(AuthSubject.Owner1);
+        byte[] oversize = new byte[(int)Bepthaymao.Application.Menu.DishImageRules.MaxBytes + 1];
+        using HttpResponseMessage response = await UploadAsync(owner, oversize, "to.jpg", "image/jpeg");
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
+        await AssertVietnameseProblemAsync(response, "Ảnh lớn hơn 2 MB. Chọn ảnh nhỏ hơn.");
+    }
+
+    [Fact]
+    public async Task MultipartBodyOverLimitReturns413NotServerError()
+    {
+        HttpClient owner = await _world.ClientForAsync(AuthSubject.Owner1);
+        byte[] huge = new byte[3_670_016];
+        using HttpResponseMessage response = await UploadAsync(owner, huge, "khong-lo.jpg", "image/jpeg");
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ManagerGets403AnonymousGets401()
+    {
+        HttpClient manager = await _world.ClientForAsync(AuthSubject.ManagerA1);
+        using HttpResponseMessage forbidden = await UploadAsync(manager, ImageFixtures.Png(32, 32), "a.png", "image/png");
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+
+        HttpClient anonymous = await _world.ClientForAsync(AuthSubject.Anonymous);
+        using HttpResponseMessage unauthorized = await UploadAsync(anonymous, ImageFixtures.Png(32, 32), "a.png", "image/png");
+        Assert.Equal(HttpStatusCode.Unauthorized, unauthorized.StatusCode);
+    }
+
+    private static async Task AssertVietnameseProblemAsync(HttpResponseMessage response, string expectedTitle)
+    {
+        string body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        using JsonDocument json = JsonDocument.Parse(body);
+        Assert.Equal(expectedTitle, json.RootElement.GetProperty("title").GetString());
+        Assert.DoesNotContain("   at ", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("Exception", body, StringComparison.Ordinal);
+    }
+
     internal static async Task<HttpResponseMessage> UploadAsync(HttpClient client, byte[] bytes, string fileName, string contentType)
     {
         using MultipartFormDataContent form = new();
