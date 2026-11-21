@@ -10,6 +10,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     private readonly InfrastructureFixture? _infrastructure;
     private readonly IReadOnlyDictionary<string, string?>? _settings;
     private readonly TimeProvider? _clock;
+    private readonly string _mediaRoot = Path.Combine(Path.GetTempPath(), "bepthaymao-media-" + Guid.NewGuid().ToString("N"));
 
     public ApiFactory()
     {
@@ -32,6 +33,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Jwt:SigningKey", "test-signing-key-for-integration-tests-only-48-bytes");
         builder.UseSetting("RateLimiting:Login:PermitLimit", "1000");
         builder.UseSetting("RateLimiting:LoginIdentifier:PermitLimit", "1000");
+        builder.UseSetting("DishImages:StoragePath", _mediaRoot);
         if (_clock is not null)
             builder.ConfigureTestServices(services => services.AddSingleton(_clock));
         if (_infrastructure is not null)
@@ -45,5 +47,11 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             foreach ((string key, string? value) in _settings)
                 builder.UseSetting(key, value);
         }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);
+        if (disposing && Directory.Exists(_mediaRoot)) Directory.Delete(_mediaRoot, recursive: true);
     }
 }
