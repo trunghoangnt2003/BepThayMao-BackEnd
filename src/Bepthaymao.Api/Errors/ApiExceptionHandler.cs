@@ -57,6 +57,22 @@ internal sealed class ApiExceptionHandler(
                 Title = "Conflict.",
             };
         }
+        else if (exception is PayloadTooLargeException tooLarge)
+        {
+            problemDetails = new ProblemDetails
+            {
+                Status = StatusCodes.Status413PayloadTooLarge,
+                Title = tooLarge.Message,
+            };
+        }
+        else if (exception is UnsupportedMediaTypeException unsupported)
+        {
+            problemDetails = new ProblemDetails
+            {
+                Status = StatusCodes.Status415UnsupportedMediaType,
+                Title = unsupported.Message,
+            };
+        }
         else if (exception is NotFoundException)
         {
             problemDetails = new ProblemDetails

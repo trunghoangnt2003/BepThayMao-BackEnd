@@ -38,6 +38,7 @@ internal sealed class UploadOwnerDishImageCommandHandler(ICurrentUser currentUse
     public async Task<UploadedImageDto> Handle(UploadOwnerDishImageCommand command, CancellationToken cancellationToken)
     {
         _ = currentUser.OwnerId ?? throw new ForbiddenException();
+        if (command.Length > DishImageRules.MaxBytes) throw new PayloadTooLargeException("Ảnh lớn hơn 2 MB. Chọn ảnh nhỏ hơn.");
         byte[] webp = processor.ToWebp(command.Content);
         return new(await storage.SaveWebpAsync(webp, cancellationToken));
     }
