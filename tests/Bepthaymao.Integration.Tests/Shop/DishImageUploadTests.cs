@@ -69,6 +69,19 @@ public sealed class DishImageUploadTests(InfrastructureFixture infrastructure) :
     }
 
     [Fact]
+    public async Task UploadedImageIsServedToAnonymousVisitors()
+    {
+        HttpClient owner = await _world.ClientForAsync(AuthSubject.Owner1);
+        using HttpResponseMessage created = await UploadAsync(owner, ImageFixtures.Jpeg(300, 200), "mon.jpg", "image/jpeg");
+        string imageUrl = await ReadImageUrlAsync(created);
+
+        using HttpResponseMessage served = await _world.Factory.CreateClient().GetAsync(imageUrl, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, served.StatusCode);
+        Assert.Equal("image/webp", served.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("nosniff", Assert.Single(served.Headers.GetValues("X-Content-Type-Options")));
+    }
+
+    [Fact]
     public async Task FakeJpegReturns415()
     {
         HttpClient owner = await _world.ClientForAsync(AuthSubject.Owner1);
