@@ -6,6 +6,18 @@ http:
       priority: 100
       middlewares: [secure-headers, body-limit, rate-global]
       service: api
+    api-dish-images:
+      entryPoints: [web]
+      rule: Path(`/api/v1/owner/dish-images`)
+      priority: 120
+      middlewares: [secure-headers, body-limit-upload, rate-global]
+      service: api
+    media:
+      entryPoints: [web]
+      rule: PathPrefix(`/media/mon/`)
+      priority: 110
+      middlewares: [secure-headers, rate-global]
+      service: api
     admin:
       entryPoints: [web]
       rule: PathPrefix(`/admin`)
@@ -22,6 +34,9 @@ http:
     body-limit:
       buffering:
         maxRequestBodyBytes: 1048576
+    body-limit-upload:
+      buffering:
+        maxRequestBodyBytes: 3145728
     rate-global:
       rateLimit:
         average: 50

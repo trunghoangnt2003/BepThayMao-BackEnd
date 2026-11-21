@@ -13,4 +13,6 @@ resources:
 - ingress.yaml
 - rate-global.yaml
 - body-limit.yaml
+- body-limit-upload.yaml
+- media-pvc.yaml
 - secure-headers.yaml

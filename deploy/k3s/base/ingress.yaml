@@ -6,6 +6,25 @@ spec:
   entryPoints:
   - web
   routes:
+  - match: Path(`/api/v1/owner/dish-images`)
+    kind: Rule
+    priority: 120
+    services:
+    - name: api
+      port: 8080
+    middlewares:
+    - name: secure-headers
+    - name: body-limit-upload
+    - name: rate-global
+  - match: PathPrefix(`/media/mon/`)
+    kind: Rule
+    priority: 110
+    services:
+    - name: api
+      port: 8080
+    middlewares:
+    - name: secure-headers
+    - name: rate-global
   - match: PathPrefix(`/api`)
     kind: Rule
     priority: 100
