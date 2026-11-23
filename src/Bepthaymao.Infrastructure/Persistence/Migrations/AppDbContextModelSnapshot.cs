@@ -91,6 +91,14 @@ namespace Bepthaymao.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("phone");
 
+                    b.Property<string>("QrProvider")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("VietQR")
+                        .HasColumnName("qr_provider");
+
                     b.Property<string>("SepayAccountRef")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")

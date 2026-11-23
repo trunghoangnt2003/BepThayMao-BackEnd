@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Bepthaymao.Domain.Branches;
 using Bepthaymao.Application.Orders;
 using QRCoder;
 
@@ -11,8 +12,12 @@ namespace Bepthaymao.Infrastructure.Payments;
 /// </summary>
 internal sealed class VietQrService : IPaymentQrService
 {
-    public string CreateQrUrl(string bankCode, string accountNo, long amount, string transferContent)
+    public string CreateQrUrl(string bankCode, string accountNo, long amount, string transferContent, QrProvider provider = QrProvider.VietQR)
     {
+        if (provider == QrProvider.SePay)
+            return "https://vietqr.app/img?acc=" + Uri.EscapeDataString(accountNo) + "&bank=" + Uri.EscapeDataString(bankCode)
+                + "&amount=" + amount.ToString(CultureInfo.InvariantCulture) + "&des=" + Uri.EscapeDataString(transferContent) + "&template=qronly";
+        if (provider != QrProvider.VietQR) throw new ArgumentOutOfRangeException(nameof(provider));
         string payload = BuildPayload(bankCode, accountNo, amount, transferContent);
         using QRCodeGenerator generator = new();
         using QRCodeData data = generator.CreateQrCode(payload, QRCodeGenerator.ECCLevel.M);

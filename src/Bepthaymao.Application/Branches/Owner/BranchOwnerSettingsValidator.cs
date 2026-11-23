@@ -18,5 +18,6 @@ internal sealed class BranchOwnerSettingsValidator : AbstractValidator<BranchOwn
         RuleFor(branch => branch.BankAccountNo).MaximumLength(50);
         RuleFor(branch => branch.BankCode).MaximumLength(20);
         RuleFor(branch => branch.SepayAccountRef).MaximumLength(100);
+        RuleFor(branch => branch.QrProvider).IsInEnum();
     }
 }

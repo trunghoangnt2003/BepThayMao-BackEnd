@@ -83,7 +83,8 @@ internal sealed class BranchOptionsQueryHandler(IMenuStore menu, TimeProvider cl
         if (!located) return [.. options.OrderBy(option => option.Name, StringComparer.Ordinal)];
         Dictionary<Guid, DateTimeOffset> created = snapshot.Branches.ToDictionary(branch => branch.Id, branch => branch.CreatedAt);
         List<BranchOptionDto> sorted = [.. options.OrderBy(option => option.DistanceKm).ThenBy(option => created[option.BranchId])];
-        if (sorted.Count > 0) sorted[0] = sorted[0] with { IsSuggested = true };
+        int suggested = sorted.FindIndex(option => option.AcceptsOrders);
+        if (suggested >= 0) sorted[suggested] = sorted[suggested] with { IsSuggested = true };
         return sorted;
     }
 
@@ -130,7 +131,7 @@ internal sealed class CreateOrderCommandHandler(IMenuStore menu, IOrderStore ord
         OrderBranchInfo branch = (await orders.BranchesAsync([order.BranchId], cancellationToken))[order.BranchId];
         if (branch.BankCode is null || branch.BankAccountNo is null)
             throw new ConflictException("branchId", "Cơ sở này tạm chưa nhận đơn. Hãy chọn cơ sở khác.");
-        return new(Created(order, branch.Name, branch.BankCode, branch.BankAccountNo), grants.Issue(order.Id), Replayed: true);
+        return new(Created(order, branch.Name, branch.BankCode, branch.BankAccountNo, branch.QrProvider), grants.Issue(order.Id), Replayed: true);
     }
 
     private async Task<OrderCreatedResult> PlaceAsync(CreateOrderCommand command, string normalizedPhone, string dedupeHash, DateTimeOffset now,
@@ -155,12 +156,12 @@ internal sealed class CreateOrderCommandHandler(IMenuStore menu, IOrderStore ord
             new(command.CustomerName.Trim(), normalizedPhone, command.DeliveryAddress.Trim(), command.DeliveryLat, command.DeliveryLng, distance, command.Note),
             items, !open, OpeningHours.DeliveryDate(branch.OpenTime, branch.CloseTime, now), now, command.IdempotencyKey, dedupeHash);
         orders.Add(order);
-        return new(Created(order, branch.Name, branch.BankCode!, branch.BankAccountNo!), grants.Issue(order.Id), Replayed: false);
+        return new(Created(order, branch.Name, branch.BankCode!, branch.BankAccountNo!, branch.QrProvider), grants.Issue(order.Id), Replayed: false);
     }
 
-    private OrderCreatedDto Created(Order order, string branchName, string bankCode, string accountNo) =>
+    private OrderCreatedDto Created(Order order, string branchName, string bankCode, string accountNo, Bepthaymao.Domain.Branches.QrProvider provider) =>
         new(order.ToDto(branchName, includeCustomer: false),
-            new(qr.CreateQrUrl(bankCode, accountNo, order.ItemsTotal, order.Code), order.ItemsTotal, order.Code, order.ExpiresAt),
+            new(qr.CreateQrUrl(bankCode, accountNo, order.ItemsTotal, order.Code, provider), order.ItemsTotal, order.Code, order.ExpiresAt),
             OrderMapping.ShippingNote);
 
     private async Task<string> NewCodeAsync(CancellationToken cancellationToken)

@@ -6,6 +6,15 @@ spec:
   entryPoints:
   - web
   routes:
+  - match: PathPrefix(`/maps/`)
+    kind: Rule
+    priority: 110
+    services:
+    - name: api
+      port: 8080
+    middlewares:
+    - name: secure-headers
+    - name: rate-global
   - match: Path(`/api/v1/owner/dish-images`)
     kind: Rule
     priority: 120
@@ -44,6 +53,7 @@ spec:
     middlewares:
     - name: secure-headers
     - name: rate-global
+    - name: compress-assets
   - match: PathPrefix(`/`)
     kind: Rule
     priority: 1
@@ -53,3 +63,4 @@ spec:
     middlewares:
     - name: secure-headers
     - name: rate-global
+    - name: compress-assets

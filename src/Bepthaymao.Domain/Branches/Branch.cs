@@ -16,6 +16,7 @@ public sealed partial class Branch
     public string? BankAccountNo { get; private set; }
     public string? BankCode { get; private set; }
     public string? SepayAccountRef { get; private set; }
+    public QrProvider QrProvider { get; private set; }
     public string Name { get; private set; } = "";
     public string Address { get; private set; } = "";
     public string Phone { get; private set; } = "";
@@ -37,7 +38,8 @@ public sealed partial class Branch
     {
         (string name, string address, string phone, double lat, double lng, TimeOnly openTime, TimeOnly closeTime,
             int abandonedThresholdMinutes, IReadOnlyList<string> zaloRecipientIds, string? bankAccountNo,
-            string? bankCode, string? sepayAccountRef, bool isActive) = details;
+            string? bankCode, string? sepayAccountRef, bool isActive, QrProvider qrProvider) = details;
+        if (!Enum.IsDefined(qrProvider)) throw new DomainRuleException("qrProvider", "Chọn VietQR hoặc SePay.");
         name = name.Trim();
         address = address.Trim();
         if (name.Length is 0 or > 200) throw new DomainRuleException("name", "Nhập tên cơ sở (tối đa 200 ký tự).");
@@ -53,7 +55,8 @@ public sealed partial class Branch
         sepayAccountRef = NormalizeOptional(sepayAccountRef, 100, "sepayAccountRef");
         bool changed = Name != name || Address != address || Phone != phone || OpenTime != openTime || CloseTime != closeTime || IsActive != isActive ||
             Lat != lat || Lng != lng || AbandonedThresholdMinutes != abandonedThresholdMinutes ||
-            !ZaloRecipientIds.SequenceEqual(normalizedIds) || BankAccountNo != bankAccountNo || BankCode != bankCode || SepayAccountRef != sepayAccountRef;
+            !ZaloRecipientIds.SequenceEqual(normalizedIds) || BankAccountNo != bankAccountNo || BankCode != bankCode || SepayAccountRef != sepayAccountRef || QrProvider != qrProvider;
+        QrProvider = qrProvider;
         (Name, Address, Phone, OpenTime, CloseTime, IsActive) = (name, address, phone, openTime, closeTime, isActive);
         (Lat, Lng, AbandonedThresholdMinutes, ZaloRecipientIds, BankAccountNo, BankCode, SepayAccountRef) =
             (lat, lng, abandonedThresholdMinutes, [.. normalizedIds], bankAccountNo, bankCode, sepayAccountRef);

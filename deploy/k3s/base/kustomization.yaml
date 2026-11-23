@@ -15,4 +15,6 @@ resources:
 - body-limit.yaml
 - body-limit-upload.yaml
 - media-pvc.yaml
+- maps-pvc.yaml
 - secure-headers.yaml
+- compress-assets.yaml

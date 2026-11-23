@@ -22,7 +22,7 @@ internal sealed class MenuStore(AppDbContext context) : IMenuStore
         await context.Branches.AsNoTracking().IgnoreQueryFilters([AppDbContext.BranchScope]).Where(branch => branch.IsActive)
             .OrderBy(branch => branch.CreatedAt).ThenBy(branch => branch.Id)
             .Select(branch => new ActiveBranchInfo(branch.Id, branch.OwnerId, branch.Name, branch.Address, branch.Lat, branch.Lng,
-                branch.OpenTime, branch.CloseTime, branch.BankCode, branch.BankAccountNo, branch.CreatedAt))
+                branch.OpenTime, branch.CloseTime, branch.BankCode, branch.BankAccountNo, branch.CreatedAt, branch.QrProvider))
             .ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<BranchDish>> ListUnavailableAsync(CancellationToken cancellationToken) =>
@@ -89,7 +89,7 @@ internal sealed class OrderStore(AppDbContext context) : IOrderStore
     {
         Guid[] ids = [.. branchIds];
         return await context.Branches.AsNoTracking().IgnoreQueryFilters([AppDbContext.BranchScope]).Where(branch => ids.Contains(branch.Id))
-            .Select(branch => new OrderBranchInfo(branch.Id, branch.Name, branch.BankCode, branch.BankAccountNo))
+            .Select(branch => new OrderBranchInfo(branch.Id, branch.Name, branch.BankCode, branch.BankAccountNo, branch.QrProvider))
             .ToDictionaryAsync(branch => branch.Id, cancellationToken);
     }
 

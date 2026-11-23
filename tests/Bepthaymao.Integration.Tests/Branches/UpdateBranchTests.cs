@@ -26,6 +26,7 @@ public sealed class UpdateBranchTests(InfrastructureFixture infrastructure) : IC
         ["bankAccountNo"] = "111222333",
         ["bankCode"] = "ACB",
         ["sepayAccountRef"] = "sepay-xyz",
+        ["qrProvider"] = "SePay",
     };
 
     private static StringContent Json(JsonObject body) => new(body.ToJsonString(), Encoding.UTF8, "application/json");
@@ -39,6 +40,7 @@ public sealed class UpdateBranchTests(InfrastructureFixture infrastructure) : IC
 
     private static void AssertUpdated(JsonElement branch, Guid id)
     {
+        Assert.Equal("SePay", branch.GetProperty("qrProvider").GetString());
         Assert.Equal(id, branch.GetProperty("id").GetGuid());
         Assert.Equal("Cơ sở A1 mới", branch.GetProperty("name").GetString());
         Assert.Equal("99 Lê Lợi, Quận 1", branch.GetProperty("address").GetString());

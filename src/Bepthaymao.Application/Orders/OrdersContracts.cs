@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Bepthaymao.Domain.Branches;
 using Bepthaymao.Domain.Orders;
 
 namespace Bepthaymao.Application.Orders;
@@ -24,12 +25,12 @@ public interface IOrderStore
     Task<Order?> FindRecentPendingByDedupeHashAsync(string dedupeHash, DateTimeOffset since, CancellationToken cancellationToken);
 }
 
-public sealed record OrderBranchInfo(Guid Id, string Name, string? BankCode, string? BankAccountNo);
+public sealed record OrderBranchInfo(Guid Id, string Name, string? BankCode, string? BankAccountNo, QrProvider QrProvider = QrProvider.VietQR);
 
 /// <summary>Dựng dữ liệu QR chuyển khoản; trả URI ảnh (data URI SVG cho VietQR).</summary>
 public interface IPaymentQrService
 {
-    string CreateQrUrl(string bankCode, string accountNo, long amount, string transferContent);
+    string CreateQrUrl(string bankCode, string accountNo, long amount, string transferContent, QrProvider provider = QrProvider.VietQR);
 }
 
 public sealed record OrderItemDto(string DishName, long UnitPrice, int Quantity, long LineTotal);

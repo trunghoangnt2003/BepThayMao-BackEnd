@@ -2986,6 +2986,9 @@
               "null",
               "string"
             ]
+          },
+          "qrProvider": {
+            "$ref": "#/components/schemas/QrProvider"
           }
         },
         "additionalProperties": false
@@ -3073,6 +3076,9 @@
               "null",
               "string"
             ]
+          },
+          "qrProvider": {
+            "$ref": "#/components/schemas/QrProvider"
           }
         }
       },
@@ -3503,6 +3509,9 @@
               "null",
               "string"
             ]
+          },
+          "qrProvider": {
+            "$ref": "#/components/schemas/QrProvider"
           }
         }
       },
@@ -4277,6 +4286,13 @@
             "type": "string"
           }
         }
+      },
+      "QrProvider": {
+        "enum": [
+          "VietQR",
+          "SePay"
+        ],
+        "default": "VietQR"
       },
       "ResetManagerPasswordRequest": {
         "required": [

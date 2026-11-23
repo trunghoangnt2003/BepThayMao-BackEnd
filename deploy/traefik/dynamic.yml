@@ -1,5 +1,11 @@
 http:
   routers:
+    maps:
+      entryPoints: [web]
+      rule: PathPrefix(`/maps/`)
+      priority: 110
+      middlewares: [secure-headers, rate-global]
+      service: api
     api:
       entryPoints: [web]
       rule: PathPrefix(`/api`)
@@ -22,15 +28,18 @@ http:
       entryPoints: [web]
       rule: PathPrefix(`/admin`)
       priority: 50
-      middlewares: [secure-headers, rate-global]
+      middlewares: [secure-headers, rate-global, compress-assets]
       service: admin
     customer:
       entryPoints: [web]
       rule: PathPrefix(`/`)
       priority: 1
-      middlewares: [secure-headers, rate-global]
+      middlewares: [secure-headers, rate-global, compress-assets]
       service: customer
   middlewares:
+    compress-assets:
+      compress:
+        includedContentTypes: [text/javascript, application/javascript, text/css, image/svg+xml]
     body-limit:
       buffering:
         maxRequestBodyBytes: 1048576

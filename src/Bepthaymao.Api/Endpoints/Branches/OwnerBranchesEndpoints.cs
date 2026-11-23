@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Bepthaymao.Domain.Branches;
 using Bepthaymao.Api.Security;
 using Bepthaymao.Application.Abstractions.Errors;
 using Bepthaymao.Application.Abstractions.Messaging;
@@ -27,10 +28,11 @@ public sealed record BranchOwnerSettingsRequest(
     [property: JsonRequired] bool IsActive,
     string? BankAccountNo = null,
     string? BankCode = null,
-    string? SepayAccountRef = null)
+    string? SepayAccountRef = null,
+    QrProvider QrProvider = QrProvider.VietQR)
 {
     internal BranchOwnerSettingsData ToData() => new(Name, Address, Phone, Lat, Lng, OpenTime, CloseTime,
-        AbandonedThresholdMinutes, ZaloRecipientIds, BankAccountNo, BankCode, SepayAccountRef, IsActive);
+        AbandonedThresholdMinutes, ZaloRecipientIds, BankAccountNo, BankCode, SepayAccountRef, IsActive, QrProvider);
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]

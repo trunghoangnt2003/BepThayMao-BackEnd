@@ -1,0 +1,11 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: compress-assets
+spec:
+  compress:
+    includedContentTypes:
+    - text/javascript
+    - application/javascript
+    - text/css
+    - image/svg+xml

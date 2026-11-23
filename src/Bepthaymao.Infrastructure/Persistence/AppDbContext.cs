@@ -111,6 +111,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataSc
             branch.Property(value => value.BankAccountNo).HasMaxLength(50);
             branch.Property(value => value.BankCode).HasMaxLength(20);
             branch.Property(value => value.SepayAccountRef).HasMaxLength(100);
+            branch.Property(value => value.QrProvider).HasConversion<string>().HasMaxLength(10).HasDefaultValue(QrProvider.VietQR);
         });
         builder.Entity<Dish>(dish =>
         {

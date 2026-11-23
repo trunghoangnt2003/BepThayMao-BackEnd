@@ -16,7 +16,7 @@ public sealed class ManagerSettingsTests(InfrastructureFixture infrastructure) :
     private static readonly string[] _viewKeys =
     [
         "abandonedThresholdMinutes", "address", "bankAccountNo", "bankCode", "closeTime", "isActive", "name",
-        "openTime", "phone", "sepayAccountRef", "zaloRecipientIds",
+        "openTime", "phone", "qrProvider", "sepayAccountRef", "zaloRecipientIds",
     ];
 
     private static object ValidSettings() => new
@@ -91,6 +91,7 @@ public sealed class ManagerSettingsTests(InfrastructureFixture infrastructure) :
     [Theory]
     [InlineData("bankAccountNo", "\"999888777\"")]
     [InlineData("bankCode", "\"ACB\"")]
+    [InlineData("qrProvider", "\"SePay\"")]
     [InlineData("sepayAccountRef", "\"sepay-khac\"")]
     [InlineData("name", "\"Tên do quản lý tự đặt\"")]
     [InlineData("isActive", "false")]

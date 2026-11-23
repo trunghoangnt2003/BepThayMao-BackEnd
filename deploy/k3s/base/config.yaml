@@ -9,3 +9,4 @@ data:
   ReverseProxy__KnownNetworks__0: 10.42.0.0/16
   AllowedHosts: localhost;127.0.0.1;api
   DishImages__StoragePath: /var/lib/bepthaymao/media/mon
+  Maps__RootPath: /var/lib/bepthaymao/maps

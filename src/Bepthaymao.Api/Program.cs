@@ -33,6 +33,7 @@ app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseSerilogRequestLogging();
 app.UseApiErrorHandling();
 app.UseDishImageFiles();
+app.UseMapFiles();
 app.UseDeclaredBodyLimit();
 app.UseRateLimiter();
 app.UseAuthentication();

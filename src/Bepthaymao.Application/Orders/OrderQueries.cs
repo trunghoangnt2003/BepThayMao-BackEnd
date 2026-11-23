@@ -51,7 +51,7 @@ internal sealed class GetOrderQueryHandler(IOrderStore store, IOrderAccessGrants
         Order order = await PublicOrderAccess.FindAsync(store, grants, query.Code, query.Phone, query.AccessTokens, cancellationToken);
         OrderBranchInfo branch = (await store.BranchesAsync([order.BranchId], cancellationToken))[order.BranchId];
         PaymentDto? payment = order.IsPaymentOpen(clock.GetUtcNow()) && branch.BankCode is not null && branch.BankAccountNo is not null
-            ? new(qr.CreateQrUrl(branch.BankCode, branch.BankAccountNo, order.ItemsTotal, order.Code), order.ItemsTotal, order.Code, order.ExpiresAt)
+            ? new(qr.CreateQrUrl(branch.BankCode, branch.BankAccountNo, order.ItemsTotal, order.Code, branch.QrProvider), order.ItemsTotal, order.Code, order.ExpiresAt)
             : null;
         return new(order.ToDto(branch.Name, includeCustomer: false), payment);
     }

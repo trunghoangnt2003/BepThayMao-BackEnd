@@ -9,3 +9,4 @@ node_modules/
 deploy/.env
 artifacts/
 .data/
+src/Bepthaymao.Api/maps/

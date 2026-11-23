@@ -1,10 +1,11 @@
 using Bepthaymao.Domain.Menu;
+using Bepthaymao.Domain.Branches;
 
 namespace Bepthaymao.Application.Menu;
 
 /// <summary>Cơ sở đang hoạt động, đọc ngoài filter cho luồng công khai (thực đơn, chọn cơ sở, đặt đơn).</summary>
 public sealed record ActiveBranchInfo(Guid Id, Guid OwnerId, string Name, string Address, double Lat, double Lng,
-    TimeOnly OpenTime, TimeOnly CloseTime, string? BankCode, string? BankAccountNo, DateTimeOffset CreatedAt)
+    TimeOnly OpenTime, TimeOnly CloseTime, string? BankCode, string? BankAccountNo, DateTimeOffset CreatedAt, QrProvider QrProvider = QrProvider.VietQR)
 {
     /// <summary>Đủ thông tin VietQR (mã ngân hàng + số tài khoản) mới nhận đơn (D-08).</summary>
     public bool AcceptsOrders => !string.IsNullOrWhiteSpace(BankCode) && !string.IsNullOrWhiteSpace(BankAccountNo);

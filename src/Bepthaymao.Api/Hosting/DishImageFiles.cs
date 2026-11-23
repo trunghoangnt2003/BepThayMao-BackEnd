@@ -27,6 +27,11 @@ internal static class DishImageFiles
                 context.Context.Response.Headers.XContentTypeOptions = "nosniff";
             },
         });
+        app.Use(async (context, next) =>
+        {
+            if (context.Request.Path.StartsWithSegments("/media/mon")) context.Response.StatusCode = StatusCodes.Status404NotFound;
+            else await next(context);
+        });
         return app;
     }
 }

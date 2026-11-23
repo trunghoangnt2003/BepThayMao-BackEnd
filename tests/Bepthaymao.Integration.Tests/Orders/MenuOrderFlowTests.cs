@@ -93,6 +93,19 @@ public sealed class MenuOrderFlowTests(InfrastructureFixture infrastructure) : I
     }
 
     [Fact]
+    public async Task NearestBranchWithoutPaymentDetailsIsNotSuggested()
+    {
+        using HttpResponseMessage response = await _factory.CreateClient().PostAsJsonAsync("/api/v1/checkout/branch-options",
+            new { deliveryLat = 11.50, deliveryLng = 107.00, dishIds = new[] { _available } }, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        JsonElement[] options = [.. (await ReadJsonAsync(response)).EnumerateArray()];
+        Assert.Equal(_noBank, options[0].GetProperty("branchId").GetGuid());
+        Assert.False(options[0].GetProperty("isSuggested").GetBoolean());
+        JsonElement suggested = Assert.Single(options, option => option.GetProperty("isSuggested").GetBoolean());
+        Assert.True(suggested.GetProperty("acceptsOrders").GetBoolean());
+    }
+
+    [Fact]
     public async Task OrderIsCreatedWithQrAndConflictsAreExplained()
     {
         HttpClient client = _factory.CreateClient();
