@@ -1,4 +1,3 @@
-using System.ComponentModel.DataAnnotations.Schema;
 using Bepthaymao.Domain.Common;
 
 namespace Bepthaymao.Domain.Orders;
@@ -33,6 +32,7 @@ public enum PaymentStatus
 public sealed class Order : IBranchScoped
 {
     public static readonly TimeSpan PaymentWindow = TimeSpan.FromMinutes(15);
+    public const int CancelReasonMaxLength = 200;
 
     private readonly List<OrderItem> _items = [];
 
@@ -58,8 +58,7 @@ public sealed class Order : IBranchScoped
     public DateTimeOffset? CancelledAt { get; private set; }
     public string? CancelReason { get; private set; }
 
-    // Khung biên dịch cho bước RED (03-01): chưa lưu cột và chưa có hành vi.
-    [NotMapped]
+    /// <summary>Nguyên nhân hủy; null khi đơn chưa bị hủy hoặc đã được khôi phục. <see cref="CancelReason"/> chỉ là lý do tự do của nhân sự.</summary>
     public CancellationKind? CancellationKind { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public Guid? IdempotencyKey { get; private set; }
@@ -112,15 +111,21 @@ public sealed class Order : IBranchScoped
         PaymentAccountNo = accountNo;
     }
 
-    /// <summary>Nhận đủ tiền đúng một lần. Chỉ khôi phục đơn tự hết hạn; không hồi sinh hủy chủ động.</summary>
+    /// <summary>Đơn tự hết hạn: nhận đủ tiền thì tự khôi phục Paid (D-02); chủ động hủy thì không (D-03).</summary>
+    public bool CanRestoreFromExpiry => Status == OrderStatus.Cancelled && CancellationKind == Orders.CancellationKind.Expired;
+
+    /// <summary>
+    /// Nhận đủ tiền đúng một lần. Trả true khi đơn chuyển sang Paid (kể cả khôi phục từ hết hạn).
+    /// Đơn chủ động hủy chỉ ghi nhận khoản tiền (LatePaid) và trả false; không bao giờ hồi sinh hay lùi trạng thái đã đi tiếp.
+    /// </summary>
     public bool ReceivePayment(long amount, DateTimeOffset occurredAt, DateTimeOffset receivedAt)
     {
-        if (amount < ItemsTotal || PaymentStatus != PaymentStatus.Unpaid) return false;
+        if (amount <= 0 || amount < ItemsTotal || PaymentStatus != PaymentStatus.Unpaid) return false;
         LatePayment = occurredAt >= ExpiresAt;
         PaidAt = occurredAt.ToUniversalTime();
         OverpaidAmount = amount - ItemsTotal;
         Overpaid = OverpaidAmount > 0;
-        if (Status == OrderStatus.Cancelled && CancelReason != "expired")
+        if (Status == OrderStatus.Cancelled && !CanRestoreFromExpiry)
         {
             LatePayment = true;
             PaymentStatus = PaymentStatus.LatePaid;
@@ -132,15 +137,14 @@ public sealed class Order : IBranchScoped
         PaymentStatus = LatePayment ? PaymentStatus.LatePaid : PaymentStatus.Paid;
         CancelledAt = null;
         CancelReason = null;
+        CancellationKind = null;
         return true;
     }
 
     public bool Expire(DateTimeOffset now)
     {
         if (Status != OrderStatus.PendingPayment || PaymentStatus != PaymentStatus.Unpaid || now < ExpiresAt) return false;
-        Status = OrderStatus.Cancelled;
-        CancelledAt = now.ToUniversalTime();
-        CancelReason = "expired";
+        Cancel(Orders.CancellationKind.Expired, null, now);
         return true;
     }
 
@@ -152,17 +156,27 @@ public sealed class Order : IBranchScoped
     {
         if (Status != OrderStatus.PendingPayment || PaymentStatus != PaymentStatus.Unpaid)
             throw new DomainRuleException("status", "Đơn này không còn hủy được.");
-        Status = OrderStatus.Cancelled;
-        CancelledAt = now.ToUniversalTime();
-        CancelReason = "customer";
+        Cancel(Orders.CancellationKind.ByCustomer, null, now);
     }
 
-    /// <summary>Khung biên dịch cho bước RED (03-01): chưa có hành vi.</summary>
+    /// <summary>Cơ sở hủy đơn kèm lý do (đơn chưa nhận, đã thanh toán hoặc đã nhận); tiền đã thu hoàn thủ công, không tự hoàn.</summary>
     public void CancelByStaff(string reason, DateTimeOffset now)
     {
-        _ = reason;
-        _ = now;
-        if (Status == OrderStatus.Cancelled) return;
+        string trimmed = reason?.Trim() ?? "";
+        if (trimmed.Length == 0) throw new DomainRuleException("reason", "Phải nhập lý do hủy đơn.");
+        if (trimmed.Length > CancelReasonMaxLength)
+            throw new DomainRuleException("reason", $"Lý do hủy tối đa {CancelReasonMaxLength} ký tự.");
+        if (Status is not (OrderStatus.PendingPayment or OrderStatus.Paid or OrderStatus.Accepted))
+            throw new DomainRuleException("status", "Đơn này không còn hủy được.");
+        Cancel(Orders.CancellationKind.ByStaff, trimmed, now);
+    }
+
+    private void Cancel(CancellationKind kind, string? reason, DateTimeOffset now)
+    {
+        Status = OrderStatus.Cancelled;
+        CancelledAt = now.ToUniversalTime();
+        CancellationKind = kind;
+        CancelReason = reason;
     }
 }
 

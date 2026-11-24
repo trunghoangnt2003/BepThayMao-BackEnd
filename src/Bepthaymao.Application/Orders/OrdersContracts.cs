@@ -38,7 +38,8 @@ public sealed record OrderItemDto(string DishName, long UnitPrice, int Quantity,
 
 public sealed record OrderDto(Guid Id, string Code, Guid BranchId, string BranchName, OrderStatus Status, PaymentStatus PaymentStatus,
     bool IsNextDay, DateOnly DeliveryDate, double? DistanceKm, long ItemsTotal, DateTimeOffset ExpiresAt, bool LatePayment,
-    IReadOnlyList<OrderItemDto> Items, DateTimeOffset CreatedAt, string? CustomerName, string? CustomerPhone, string? DeliveryAddress, string? Note, string? CancelReason = null, long OverpaidAmount = 0);
+    IReadOnlyList<OrderItemDto> Items, DateTimeOffset CreatedAt, string? CustomerName, string? CustomerPhone, string? DeliveryAddress, string? Note,
+    DateTimeOffset? PaidAt = null, CancellationKind? CancellationKind = null, bool Overpaid = false, long OverpaidAmount = 0);
 
 public sealed record PaymentDto(string QrUrl, long Amount, string TransferContent, DateTimeOffset ExpiresAt);
 
@@ -56,7 +57,8 @@ public static class OrderMapping
         order.PaymentStatus == PaymentStatus.LatePaid,
         [.. order.Items.Select(item => new OrderItemDto(item.DishName, item.UnitPrice, item.Quantity, item.LineTotal))], order.CreatedAt,
         includeCustomer ? order.CustomerName : null, includeCustomer ? order.CustomerPhone : null,
-        includeCustomer ? order.DeliveryAddress : null, includeCustomer ? order.Note : null, order.CancelReason, order.OverpaidAmount);
+        includeCustomer ? order.DeliveryAddress : null, includeCustomer ? order.Note : null,
+        order.PaidAt, order.CancellationKind, order.Overpaid, includeCustomer ? order.OverpaidAmount : 0);
 }
 
 public static class PhoneNumbers

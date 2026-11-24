@@ -192,7 +192,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataSc
             order.Property(value => value.CustomerPhone).HasMaxLength(15);
             order.Property(value => value.DeliveryAddress).HasMaxLength(300);
             order.Property(value => value.Note).HasMaxLength(500);
-            order.Property(value => value.CancelReason).HasMaxLength(50);
+            order.Property(value => value.CancelReason).HasMaxLength(Order.CancelReasonMaxLength);
+            order.Property(value => value.CancellationKind).HasConversion<string>().HasMaxLength(20);
             order.Property(value => value.Status).HasConversion<string>().HasMaxLength(20);
             order.Property(value => value.PaymentStatus).HasConversion<string>().HasMaxLength(20);
             order.Property(value => value.DedupeHash).HasMaxLength(64).HasDefaultValue("");
@@ -206,7 +207,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataSc
         });
         builder.Entity<Payment>(payment =>
         {
-            payment.ToTable("payments");
+            payment.ToTable("payments", table => table.HasCheckConstraint("ck_payments_amount_positive", "amount > 0"));
             payment.HasKey(value => value.Id);
             payment.HasQueryFilter(BranchScope, value => IsSystemScope
                 || (CurrentOwnerId != null && value.OwnerId == CurrentOwnerId)
@@ -253,22 +254,20 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataSc
             grant.HasOne<Order>().WithMany().HasForeignKey(value => value.OrderId).OnDelete(DeleteBehavior.Cascade);
         });
     }
+    /// <summary>
+    /// Ghi outbox cùng giao dịch với thay đổi đơn (EVT-01). Nơi này sở hữu <c>order.created</c> và <c>order.status_changed</c>;
+    /// chuyển sang Paid và hết hạn có sự kiện riêng (<c>order.paid</c>, <c>order.expired</c>) do luồng thanh toán/Worker ghi,
+    /// nên không phát thêm <c>order.status_changed</c> để mỗi chuyển trạng thái chỉ có một chủ phát.
+    /// </summary>
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         ChangeTracker.DetectChanges();
         foreach (Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry<Order> entry in ChangeTracker.Entries<Order>().ToArray())
         {
-            string? type = entry.State == EntityState.Added ? "order.created"
-                : entry.State == EntityState.Modified && entry.Property(order => order.Status).IsModified ? "order.status_changed" : null;
-            if (type is null) continue;
             Order order = entry.Entity;
-            DateTimeOffset at = order.PaidAt ?? order.CancelledAt ?? order.CreatedAt;
-            OutboxMessages.Add(new()
+            if (entry.State == EntityState.Added)
             {
-                Id = Guid.CreateVersion7(),
-                Type = type,
-                OccurredAt = at,
-                Payload = JsonSerializer.Serialize(new
+                AddOrderEvent("order.created", order.CreatedAt, new
                 {
                     orderId = order.Id,
                     code = order.Code,
@@ -276,14 +275,32 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataSc
                     itemsTotal = order.ItemsTotal,
                     isNextDay = order.IsNextDay,
                     createdAt = order.CreatedAt,
-                    from = entry.State == EntityState.Added ? null : entry.Property(value => value.Status).OriginalValue.ToString(),
-                    to = order.Status.ToString(),
-                    occurredAt = at
-                }),
+                });
+                continue;
+            }
+            if (entry.State != EntityState.Modified || !entry.Property(value => value.Status).IsModified) continue;
+            if (order.Status == OrderStatus.Paid || order.CancellationKind == CancellationKind.Expired) continue;
+            DateTimeOffset at = order.CancelledAt ?? DateTimeOffset.UtcNow;
+            AddOrderEvent("order.status_changed", at, new
+            {
+                orderId = order.Id,
+                code = order.Code,
+                branchId = order.BranchId,
+                from = entry.Property(value => value.Status).OriginalValue.ToString(),
+                to = order.Status.ToString(),
+                occurredAt = at,
             });
         }
         return base.SaveChangesAsync(cancellationToken);
     }
+
+    private void AddOrderEvent(string type, DateTimeOffset occurredAt, object data) => OutboxMessages.Add(new()
+    {
+        Id = Guid.CreateVersion7(),
+        Type = type,
+        OccurredAt = occurredAt,
+        Payload = JsonSerializer.Serialize(data),
+    });
 
     async Task IUnitOfWork.SaveChangesAsync(CancellationToken cancellationToken) => await SaveChangesAsync(cancellationToken);
 

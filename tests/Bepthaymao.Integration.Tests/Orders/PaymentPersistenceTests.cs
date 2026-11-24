@@ -13,6 +13,8 @@ using Bepthaymao.Domain.Payments;
 using Bepthaymao.Infrastructure.Persistence;
 using Bepthaymao.Integration.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Bepthaymao.Integration.Tests.Orders;
@@ -294,5 +296,50 @@ public sealed class PaymentPersistenceTests(InfrastructureFixture infrastructure
         await MutateAsync(order.Id, loaded => Assert.False(loaded.ReceivePayment(50000, _now.AddMinutes(30), _now.AddMinutes(30))));
         Assert.Equal(OrderStatus.Accepted, (await ReloadAsync(order.Id)).Status);
         Assert.Empty(await OutboxAsync("order.status_changed"));
+    }
+
+    private async Task InsertLegacyOrderAsync(AppDbContext db, string code, string status, string paymentStatus, string? cancelReason, int quantity)
+    {
+        Guid id = Guid.CreateVersion7();
+        await db.Database.ExecuteSqlAsync($"""
+            INSERT INTO orders (id, code, branch_id, customer_name, customer_phone, delivery_address, items_total, status, payment_status,
+                is_next_day, delivery_date, expires_at, cancel_reason, created_at, dedupe_hash)
+            VALUES ({id}, {code}, {_branch}, 'Khách cũ', '0901234567', 'Địa chỉ cũ', {25000L * quantity}, {status}, {paymentStatus},
+                false, {new DateOnly(2026, 11, 20)}, {_now.AddMinutes(15)}, {cancelReason}, {_now}, '')
+            """, Token);
+        await db.Database.ExecuteSqlAsync($"""
+            INSERT INTO order_items (id, order_id, dish_id, dish_name, unit_price, quantity, line_total)
+            VALUES ({Guid.CreateVersion7()}, {id}, {_dish}, 'Xôi xéo', 25000, {quantity}, {25000L * quantity})
+            """, Token);
+    }
+
+    [Fact]
+    public async Task MigrationsBackfillLegacyOrdersAndRollBackWithoutLosingCancelReason()
+    {
+        const string before = "20261122151947_AddBranchQrProvider";
+        using IServiceScope scope = _factory.Services.CreateSystemScope();
+        AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        IMigrator migrator = db.GetService<IMigrator>();
+        await migrator.MigrateAsync(before, Token);
+        await InsertLegacyOrderAsync(db, "BTMPAID22", "Paid", "Paid", null, 2);
+        await InsertLegacyOrderAsync(db, "BTMPAID33", "Accepted", "Paid", null, 1);
+        await InsertLegacyOrderAsync(db, "BTMEXP222", "Cancelled", "Unpaid", "expired", 1);
+        await InsertLegacyOrderAsync(db, "BTMCUS222", "Cancelled", "Unpaid", "customer", 1);
+        await InsertLegacyOrderAsync(db, "BTMPEND22", "PendingPayment", "Unpaid", null, 4);
+
+        await migrator.MigrateAsync(null, Token);
+        Assert.Equal(3, await db.Database.SqlQuery<long>($"SELECT order_count AS \"Value\" FROM dish_stats WHERE dish_id = {_dish} AND branch_id = {_branch}").SingleAsync(Token));
+        Assert.Equal(_account, await db.Database.SqlQuery<string>($"SELECT payment_account_no AS \"Value\" FROM orders WHERE code = 'BTMPEND22'").SingleAsync(Token));
+        Assert.Equal(_bank, await db.Database.SqlQuery<string>($"SELECT payment_bank_code AS \"Value\" FROM orders WHERE code = 'BTMPAID22'").SingleAsync(Token));
+        Assert.Equal("Expired", await db.Database.SqlQuery<string>($"SELECT cancellation_kind AS \"Value\" FROM orders WHERE code = 'BTMEXP222'").SingleAsync(Token));
+        Assert.Equal("ByCustomer", await db.Database.SqlQuery<string>($"SELECT cancellation_kind AS \"Value\" FROM orders WHERE code = 'BTMCUS222'").SingleAsync(Token));
+        Assert.Equal(0, await db.Database.SqlQuery<int>($"SELECT COUNT(*)::int AS \"Value\" FROM orders WHERE cancel_reason IS NOT NULL").SingleAsync(Token));
+        Assert.Equal(0, await db.Database.SqlQuery<int>($"SELECT COUNT(*)::int AS \"Value\" FROM orders WHERE cancellation_kind IS NOT NULL AND status <> 'Cancelled'").SingleAsync(Token));
+
+        await migrator.MigrateAsync(before, Token);
+        Assert.Equal("expired", await db.Database.SqlQuery<string>($"SELECT cancel_reason AS \"Value\" FROM orders WHERE code = 'BTMEXP222'").SingleAsync(Token));
+        Assert.Equal("customer", await db.Database.SqlQuery<string>($"SELECT cancel_reason AS \"Value\" FROM orders WHERE code = 'BTMCUS222'").SingleAsync(Token));
+        await migrator.MigrateAsync(null, Token);
+        Assert.Equal(3, await db.Database.SqlQuery<long>($"SELECT order_count AS \"Value\" FROM dish_stats WHERE dish_id = {_dish}").SingleAsync(Token));
     }
 }

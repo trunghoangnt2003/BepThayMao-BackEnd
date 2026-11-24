@@ -346,9 +346,14 @@ namespace Bepthaymao.Infrastructure.Persistence.Migrations
                         .HasColumnName("branch_id");
 
                     b.Property<string>("CancelReason")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("cancel_reason");
+
+                    b.Property<string>("CancellationKind")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("cancellation_kind");
 
                     b.Property<DateTimeOffset?>("CancelledAt")
                         .HasColumnType("timestamp with time zone")
@@ -656,7 +661,10 @@ namespace Bepthaymao.Infrastructure.Persistence.Migrations
                     b.HasIndex("BranchId", "ReceivedAt")
                         .HasDatabaseName("ix_payments_branch_id_received_at");
 
-                    b.ToTable("payments", (string)null);
+                    b.ToTable("payments", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_payments_amount_positive", "amount > 0");
+                        });
                 });
 
             modelBuilder.Entity("Bepthaymao.Domain.Payments.PaymentAudit", b =>
