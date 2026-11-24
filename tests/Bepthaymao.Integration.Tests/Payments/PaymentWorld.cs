@@ -76,10 +76,10 @@ internal sealed class PaymentWorld : IAsyncDisposable
 
     public IServiceScope OpenScope() => Factory.Services.CreateSystemScope();
 
-    public async Task<Order> PlaceAsync(Guid? branch = null, int minutesAgo = 0, string account = SharedAccount)
+    public async Task<Order> PlaceAsync(Guid? branch = null, int minutesAgo = 0, string account = SharedAccount, bool nextDay = false)
     {
         Order order = Order.Place(Guid.NewGuid(), OrderCodes.Next(), branch ?? BranchA, new("Test", Phone, "Test", null, null, null, null),
-            [OrderItem.Create(Guid.NewGuid(), DishId, "Xôi", 40000, 1)], false, new(2026, 11, 23), Clock.GetUtcNow().AddMinutes(-minutesAgo));
+            [OrderItem.Create(Guid.NewGuid(), DishId, "Xôi", 40000, 1)], nextDay, new(2026, 11, 23), Clock.GetUtcNow().AddMinutes(-minutesAgo));
         order.CapturePaymentDestination(BankCode, account);
         using IServiceScope scope = OpenScope();
         AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
