@@ -28,7 +28,8 @@
     "k3s:validate": "node scripts/k3s-validate.mjs",
     "contract:lint": "node scripts/contract-check.mjs lint",
     "contract:breaking": "node scripts/contract-check.mjs breaking",
-    "docker:smoke": "node scripts/docker-smoke.mjs"
+    "docker:smoke": "node scripts/docker-smoke.mjs",
+    "dev:worker": "node scripts/dev.mjs worker"
   },
   "devDependencies": {
     "@commitlint/cli": "21.2.4",

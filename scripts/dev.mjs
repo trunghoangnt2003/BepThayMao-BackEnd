@@ -20,10 +20,14 @@ if (command === 'up' || command === 'down') {
   if (dbArgs[0] === 'seed' && !dbArgs.includes('--file')) dbArgs.push('--file', resolve(root, process.env.SEED_BRANCHES_FILE ?? 'seed/branches.sample.json'));
   const child = spawn('dotnet', ['run', '--project', 'src/Bepthaymao.Api', '--', 'db', ...dbArgs], { cwd: root, env: buildApiEnv(env), stdio: 'inherit' });
   child.on('exit', code => { process.exitCode = code ?? 1; });
+} else if (command === 'worker') {
+  const child = spawn('dotnet', ['run', '--project', 'src/Bepthaymao.Worker'], { cwd: root, env: buildApiEnv(env), stdio: 'inherit' });
+  process.on('SIGINT', () => child.kill('SIGINT'));
+  child.on('exit', code => { process.exitCode = code ?? 1; });
 } else if (command === 'api') {
   const child = spawn('dotnet', ['run', '--project', 'src/Bepthaymao.Api', '--urls', `http://${env.API_BIND_ADDRESS}:${env.API_PORT}`], { cwd: root, env: buildApiEnv(env), stdio: 'inherit' });
   process.on('SIGINT', () => child.kill('SIGINT'));
   child.on('exit', code => { process.exitCode = code ?? 1; });
 } else {
-  throw new Error('Usage: node scripts/dev.mjs <up|down|api> [--volumes]');
+  throw new Error('Usage: node scripts/dev.mjs <up|down|api|worker> [--volumes]');
 }

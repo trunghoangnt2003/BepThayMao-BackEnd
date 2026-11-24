@@ -37,6 +37,20 @@ test('JWT signing key is generated once with 48 bytes and auth settings reach AP
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
+test('SePay webhook key is generated once and reaches API and Worker env', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'bep-sepay-env-'));
+  try {
+    const example = join(directory, 'example');
+    const actual = join(directory, 'actual');
+    writeFileSync(example, 'SePay__WebhookKey=\n');
+    const first = ensureEnvFile(example, actual);
+    const second = ensureEnvFile(example, actual);
+    assert.ok(first.SePay__WebhookKey.length >= 32);
+    assert.equal(first.SePay__WebhookKey, second.SePay__WebhookKey);
+    assert.equal(buildApiEnv(first).SePay__WebhookKey, first.SePay__WebhookKey);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
 test('seed account configuration reaches the CLI without generated passwords', () => {
   const input = { SEED_OWNER_USERNAME: 'owner', SEED_OWNER_NAME: 'Owner', SEED_OWNER_PASSWORD: 'test-seed-only-password', SEED_MANAGER_PASSWORD: 'test-manager-only-password' };
   const actual = buildApiEnv(input);

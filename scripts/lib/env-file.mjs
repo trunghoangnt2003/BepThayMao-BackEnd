@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
-const secrets = new Map([['POSTGRES_PASSWORD', 24], ['REDIS_PASSWORD', 24], ['RABBITMQ_DEFAULT_PASS', 24], ['Jwt__SigningKey', 48]]);
+const secrets = new Map([['POSTGRES_PASSWORD', 24], ['REDIS_PASSWORD', 24], ['RABBITMQ_DEFAULT_PASS', 24], ['Jwt__SigningKey', 48], ['SePay__WebhookKey', 32]]);
 
 export function readEnvFile(path) {
   if (!existsSync(path)) return {};
@@ -39,6 +39,6 @@ export function buildApiEnv(env) {
     'SePay__Mode': env['SePay__Mode'] ?? 'Fake',
     'Zalo__Mode': env['Zalo__Mode'] ?? 'Fake',
     Auth__RefreshCookie__Secure: env.Auth__RefreshCookie__Secure ?? 'false',
-    ...Object.fromEntries(Object.entries(env).filter(([key]) => key.startsWith('Jwt__') || key.startsWith('Auth__') || key.startsWith('SEED_'))),
+    ...Object.fromEntries(Object.entries(env).filter(([key]) => key.startsWith('Jwt__') || key.startsWith('Auth__') || key.startsWith('SePay__') || key.startsWith('SEED_'))),
   };
 }
