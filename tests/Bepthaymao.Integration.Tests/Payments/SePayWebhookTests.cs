@@ -9,6 +9,7 @@ using Bepthaymao.Application.Payments;
 using Bepthaymao.Domain.Branches;
 using Bepthaymao.Domain.Menu;
 using Bepthaymao.Domain.Orders;
+using Bepthaymao.Domain.Payments;
 using Bepthaymao.Infrastructure.Persistence;
 using Bepthaymao.Integration.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -139,5 +140,180 @@ public sealed partial class SePayWebhookTests(InfrastructureFixture infrastructu
         Assert.Equal(1, await db.OutboxMessages.CountAsync(value => value.Type == "order.paid", Token));
         using HttpResponseMessage ledger = await owner.GetAsync("/api/v1/owner/payments", Token);
         Assert.DoesNotContain("rawPayload", await ledger.Content.ReadAsStringAsync(Token), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task<HttpResponseMessage> SendRawAsync(string body, string? authorization = "Apikey " + _key)
+    {
+        using HttpClient client = _factory.CreateClient();
+        using HttpRequestMessage request = new(HttpMethod.Post, "/api/v1/webhooks/sepay") { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") };
+        if (authorization is not null) request.Headers.TryAddWithoutValidation("Authorization", authorization);
+        return await client.SendAsync(request, Token);
+    }
+
+    private async Task ExpireAsync(Order order)
+    {
+        using IServiceScope scope = _factory.Services.CreateSystemScope();
+        AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.True((await db.Orders.SingleAsync(value => value.Id == order.Id, Token)).Expire(_clock.GetUtcNow()));
+        await db.SaveChangesAsync(Token);
+    }
+
+    private static JsonElement Field(JsonElement payload, string name)
+    {
+        Assert.True(payload.TryGetProperty(name, out JsonElement value), $"Payload thiếu trường {name} theo events.md: {payload}");
+        return value;
+    }
+
+    private static JsonElement PayloadOf(AppDbContext db, string type) =>
+        JsonDocument.Parse(db.OutboxMessages.AsNoTracking().Single(value => value.Type == type).Payload).RootElement.Clone();
+
+    [Fact]
+    public async Task MissingEmptyOrTooShortConfiguredKeyFailsClosed()
+    {
+        foreach (string configured in new[] { "", "short" })
+        {
+            await using ApiFactory closed = new(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:Default"] = await infrastructure.CreateDatabaseAsync(),
+                ["SePay:WebhookKey"] = configured
+            }, _clock);
+            using HttpClient client = closed.CreateClient();
+            foreach (string header in new[] { "Apikey ", "Apikey " + configured, "Apikey", "" })
+            {
+                using HttpRequestMessage request = new(HttpMethod.Post, "/api/v1/webhooks/sepay") { Content = JsonContent.Create(new { id = 1 }) };
+                request.Headers.TryAddWithoutValidation("Authorization", header);
+                using HttpResponseMessage response = await client.SendAsync(request, Token);
+                Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task OutgoingAndMalformedTransfersMutateNothing()
+    {
+        Order order = await PlaceAsync();
+        using HttpResponseMessage outgoing = await SendAsync(Transfer(order) with { TransferType = "out" });
+        Assert.Equal(HttpStatusCode.OK, outgoing.StatusCode);
+        using HttpResponseMessage notJson = await SendRawAsync("{not json");
+        Assert.Equal(HttpStatusCode.BadRequest, notJson.StatusCode);
+        using HttpResponseMessage empty = await SendRawAsync("{}");
+        Assert.Equal(HttpStatusCode.BadRequest, empty.StatusCode);
+        using HttpResponseMessage badDate = await SendAsync(Transfer(order) with { TransactionDate = "2026/11/24" });
+        Assert.Equal(HttpStatusCode.BadRequest, badDate.StatusCode);
+        using HttpResponseMessage noHeader = await SendRawAsync("{}", null);
+        Assert.Equal(HttpStatusCode.Unauthorized, noHeader.StatusCode);
+        using IServiceScope scope = _factory.Services.CreateSystemScope();
+        AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Equal(0, await db.Payments.CountAsync(Token));
+        Assert.Equal(0, await db.PaymentAudits.CountAsync(Token));
+        Assert.Equal(0, await db.OutboxMessages.CountAsync(value => value.Type != "order.created", Token));
+        Assert.Equal(OrderStatus.PendingPayment, (await db.Orders.SingleAsync(Token)).Status);
+    }
+
+    [Fact]
+    public async Task SameTransactionIdWithDifferentPayloadKeepsFirstSettlementAndRaisesAnAlert()
+    {
+        Order order = await PlaceAsync();
+        using HttpResponseMessage first = await SendAsync(Transfer(order, 9));
+        using HttpResponseMessage conflicting = await SendAsync(Transfer(order, 9, 99999));
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, conflicting.StatusCode);
+        using IServiceScope scope = _factory.Services.CreateSystemScope();
+        AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Payment payment = await db.Payments.SingleAsync(Token);
+        Assert.Equal(40000, payment.Amount);
+        Assert.Equal(0, payment.OverpaidAmount);
+        Assert.True(payment.ActionRequired);
+        Assert.Equal(1, await db.OperationalAlerts.CountAsync(value => value.Type == "payment.payload_conflict", Token));
+        Order paid = await db.Orders.SingleAsync(Token);
+        Assert.Equal(0, paid.OverpaidAmount);
+        Assert.Equal(1, (await db.DishStats.SingleAsync(Token)).OrderCount);
+        Assert.Equal(1, await db.OutboxMessages.CountAsync(value => value.Type == "order.paid", Token));
+    }
+
+    [Fact]
+    public async Task LateRestoredPaymentCarriesReasonAndRestoreFlagOnBothEvents()
+    {
+        Order order = await PlaceAsync(16);
+        await ExpireAsync(order);
+        using HttpResponseMessage response = await SendAsync(Transfer(order));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using IServiceScope scope = _factory.Services.CreateSystemScope();
+        AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        JsonElement late = PayloadOf(db, "payment.late");
+        Assert.Equal("late_restored", Field(late, "reason").GetString());
+        Assert.True(Field(late, "restoredFromExpiry").GetBoolean());
+        Assert.Equal(40000, late.GetProperty("amount").GetInt64());
+        Assert.Equal(order.Id, late.GetProperty("orderId").GetGuid());
+        JsonElement paid = PayloadOf(db, "order.paid");
+        Assert.True(Field(paid, "restoredFromExpiry").GetBoolean());
+        Assert.True(Field(paid, "latePayment").GetBoolean());
+        Assert.Equal("QR_SEPAY", paid.GetProperty("method").GetString());
+    }
+
+    [Fact]
+    public async Task MoneyForAnActivelyCancelledOrderOnlyWarnsAndIsNeverSettled()
+    {
+        Order order = await PlaceAsync();
+        using (IServiceScope scope = _factory.Services.CreateSystemScope())
+        {
+            AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            (await db.Orders.SingleAsync(value => value.Id == order.Id, Token)).CancelByCustomer(_clock.GetUtcNow());
+            await db.SaveChangesAsync(Token);
+        }
+        using HttpResponseMessage response = await SendAsync(Transfer(order));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using IServiceScope check = _factory.Services.CreateSystemScope();
+        AppDbContext verify = check.ServiceProvider.GetRequiredService<AppDbContext>();
+        JsonElement late = PayloadOf(verify, "payment.late");
+        Assert.Equal("cancelled_by_user", Field(late, "reason").GetString());
+        Assert.False(Field(late, "restoredFromExpiry").GetBoolean());
+        Assert.Equal(OrderStatus.Cancelled, (await verify.Orders.SingleAsync(Token)).Status);
+        Assert.Equal(0, await verify.OutboxMessages.CountAsync(value => value.Type == "order.paid", Token));
+        Assert.Empty(await verify.DishStats.ToListAsync(Token));
+        Payment payment = await verify.Payments.SingleAsync(Token);
+        Assert.Equal("cancelled_by_user", payment.Reason);
+        Assert.True(payment.ActionRequired);
+    }
+
+    [Fact]
+    public async Task ASecondTransferAfterARestoreIsLedgeredWithoutAnotherLateOrPaidEvent()
+    {
+        Order order = await PlaceAsync(16);
+        await ExpireAsync(order);
+        (await SendAsync(Transfer(order, 1))).Dispose();
+        (await SendAsync(Transfer(order, 2))).Dispose();
+        using IServiceScope scope = _factory.Services.CreateSystemScope();
+        AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Equal(2, await db.Payments.CountAsync(Token));
+        Assert.Equal(1, await db.OutboxMessages.CountAsync(value => value.Type == "payment.late", Token));
+        Assert.Equal(1, await db.OutboxMessages.CountAsync(value => value.Type == "order.paid", Token));
+        Assert.Equal(1, (await db.DishStats.SingleAsync(Token)).OrderCount);
+        Assert.Equal("already_paid", (await db.Payments.SingleAsync(value => value.SePayTransactionId == 2, Token)).Reason);
+    }
+
+    [Fact]
+    public async Task OrderBankSnapshotWinsOverALaterBranchBankChange()
+    {
+        Order order = await PlaceAsync();
+        using (IServiceScope scope = _factory.Services.CreateSystemScope())
+        {
+            AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            Branch branch = await db.Branches.SingleAsync(value => value.Id == _branch, Token);
+            Assert.True(branch.ApplyOwnerDetails(new("Test bank", "Test street", "0900000000", 10.7, 106.7, new(0, 0), new(23, 59), 10, [], "999999", "970436", null, true)));
+            await db.SaveChangesAsync(Token);
+        }
+        using HttpResponseMessage toNewAccount = await SendAsync(Transfer(order, 1) with { AccountNumber = "999999", Gateway = "Vietcombank" });
+        Assert.Equal(HttpStatusCode.OK, toNewAccount.StatusCode);
+        using (IServiceScope scope = _factory.Services.CreateSystemScope())
+        {
+            AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            Assert.Equal(OrderStatus.PendingPayment, (await db.Orders.SingleAsync(Token)).Status);
+            Assert.Equal("wrong_destination", (await db.Payments.SingleAsync(Token)).Reason);
+        }
+        using HttpResponseMessage toSnapshot = await SendAsync(Transfer(order, 2));
+        Assert.Equal(HttpStatusCode.OK, toSnapshot.StatusCode);
+        using IServiceScope check = _factory.Services.CreateSystemScope();
+        Assert.Equal(OrderStatus.Paid, (await check.ServiceProvider.GetRequiredService<AppDbContext>().Orders.SingleAsync(Token)).Status);
     }
 }
