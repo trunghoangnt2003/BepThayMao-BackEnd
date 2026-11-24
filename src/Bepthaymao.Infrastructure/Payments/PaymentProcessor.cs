@@ -89,7 +89,9 @@ internal sealed partial class PaymentProcessor(AppDbContext db, ICurrentUser use
                 payment.Reason = changed ? (order.LatePayment ? "late_restored" : "matched")
                     : order.Status == OrderStatus.Cancelled ? "cancelled_by_user" : "already_paid";
                 if (changed) await RecordPaidAsync(order, "QR_SEPAY", cancellationToken);
-                if (order.LatePayment) AddEvent("payment.late", order, new { orderId = order.Id, branchId = order.BranchId, amount = payment.Amount });
+                // payment.late chỉ báo khoản tiền trễ này (khôi phục từ hết hạn hoặc đơn chủ động hủy), không lặp cho khoản đến sau trên đơn đã Paid.
+                if (payment.Reason is "late_restored" or "cancelled_by_user") AddEvent("payment.late", order,
+                    new { orderId = order.Id, branchId = order.BranchId, amount = payment.Amount, reason = payment.Reason, restoredFromExpiry = order.RestoredFromExpiry && changed });
                 if (payment.OverpaidAmount > 0) AddEvent("payment.overpaid", order,
                     new { orderId = order.Id, branchId = order.BranchId, overpaidAmount = payment.OverpaidAmount });
             }
@@ -174,7 +176,16 @@ internal sealed partial class PaymentProcessor(AppDbContext db, ICurrentUser use
     {
         foreach (OrderItem item in order.Items.OrderBy(value => value.DishId))
             await db.Database.ExecuteSqlAsync($"INSERT INTO dish_stats (dish_id, branch_id, order_count) VALUES ({item.DishId}, {order.BranchId}, {item.Quantity}) ON CONFLICT (dish_id, branch_id) DO UPDATE SET order_count = dish_stats.order_count + EXCLUDED.order_count", cancellationToken);
-        AddEvent("order.paid", order, new { orderId = order.Id, code = order.Code, branchId = order.BranchId, paidAt = order.PaidAt, method });
+        AddEvent("order.paid", order, new
+        {
+            orderId = order.Id,
+            code = order.Code,
+            branchId = order.BranchId,
+            paidAt = order.PaidAt,
+            method,
+            restoredFromExpiry = order.RestoredFromExpiry,
+            latePayment = order.LatePayment
+        });
     }
 
     private void AddEvent(string type, Order order, object data) => db.OutboxMessages.Add(new()

@@ -316,4 +316,18 @@ public sealed partial class SePayWebhookTests(InfrastructureFixture infrastructu
         using IServiceScope check = _factory.Services.CreateSystemScope();
         Assert.Equal(OrderStatus.Paid, (await check.ServiceProvider.GetRequiredService<AppDbContext>().Orders.SingleAsync(Token)).Status);
     }
+
+    [Fact]
+    public async Task OversizedBodyIsRejectedAfterAuthenticationWithoutWriting()
+    {
+        Order order = await PlaceAsync();
+        using HttpResponseMessage unauthenticated = await SendRawAsync(new string('x', 40000), "Apikey wrong-secret");
+        Assert.Equal(HttpStatusCode.Unauthorized, unauthenticated.StatusCode);
+        using HttpResponseMessage oversized = await SendRawAsync(JsonSerializer.Serialize(Transfer(order) with { Content = new string('x', 40000) }));
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, oversized.StatusCode);
+        using IServiceScope scope = _factory.Services.CreateSystemScope();
+        AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Equal(0, await db.Payments.CountAsync(Token));
+        Assert.Equal(OrderStatus.PendingPayment, (await db.Orders.SingleAsync(Token)).Status);
+    }
 }
