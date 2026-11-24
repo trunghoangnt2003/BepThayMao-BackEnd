@@ -8,7 +8,7 @@ namespace Bepthaymao.Integration.Tests.Security;
 public sealed class AnonymousAllowlistTests
 {
     // Phase 2 (hợp đồng 1.1.0): thực đơn, nội dung quán, chọn cơ sở, đặt/tra/hủy đơn là công khai, có rate limit Public.
-    private static readonly string[] _expected = ["login", "refreshToken", "logout", "listPublicBranches", "getMenu", "getMenuDish", "getShopContent",
+    private static readonly string[] _expected = ["receiveSepayWebhook", "login", "refreshToken", "logout", "listPublicBranches", "getMenu", "getMenuDish", "getShopContent",
         "getShopLegal", "getShopPolicy", "getBranchOptions", "createOrder", "getOrder", "grantOrderAccess", "cancelOrder", "/health/live", "/health/ready",
         "/openapi/{documentName}.json"];
     [Fact]

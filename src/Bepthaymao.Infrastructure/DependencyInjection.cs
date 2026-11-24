@@ -4,6 +4,7 @@ using Bepthaymao.Application.Branches.ListPublicBranches;
 using Bepthaymao.Application.Branches.Owner;
 using Bepthaymao.Application.Menu;
 using Bepthaymao.Application.Orders;
+using Bepthaymao.Application.Payments;
 using Bepthaymao.Application.Overview;
 using Bepthaymao.Application.Shop;
 using Bepthaymao.Infrastructure.Media;
@@ -37,6 +38,7 @@ public static class DependencyInjection
         services.AddScoped<IOrderStore, OrderStore>();
         services.AddScoped<IOrderAccessGrants, OrderAccessGrantService>();
         services.AddScoped<IOverviewReader, OverviewReader>();
+        services.AddScoped<IPaymentOperations, PaymentProcessor>();
         services.AddSingleton<IPaymentQrService, VietQrService>();
         services.AddSingleton<IDishImageProcessor, SkiaDishImageProcessor>();
         services.AddSingleton<IDishImageStorage, FileSystemDishImageStorage>();

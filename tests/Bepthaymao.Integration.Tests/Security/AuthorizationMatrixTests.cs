@@ -78,6 +78,10 @@ public sealed partial class AuthorizationMatrixTests(MatrixWorldFixture fixture)
 
     private static readonly Endpoint[] _endpoints =
     [
+        new("GET", "/owner/payments", true, false, 200),
+        new("GET", "/manager/payments", false, false, 200),
+        // Resource absent here; real Owner confirmation and cross-owner scope are covered by SePayWebhookTests.
+        new("POST", "/owner/orders/{orderId}/confirm-payment", true, false, 404),
         new("GET", "/owner/branches", true, false, 200),
         new("POST", "/owner/branches", true, false, 201),
         new("GET", "/owner/branches/{branchId}", true, true, 200),
@@ -169,7 +173,7 @@ public sealed partial class AuthorizationMatrixTests(MatrixWorldFixture fixture)
     private async Task<(HttpStatusCode Status, string Body)> SendAsync(string endpointKey, string subject, string branch)
     {
         Endpoint endpoint = _endpoints.Single(value => value.Key == endpointKey);
-        string path = "/api/v1" + endpoint.Template.Replace("{branchId}", IdOf(branch).ToString(), StringComparison.Ordinal);
+        string path = "/api/v1" + endpoint.Template.Replace("{orderId}", Guid.Empty.ToString(), StringComparison.Ordinal).Replace("{branchId}", IdOf(branch).ToString(), StringComparison.Ordinal);
         if (path.Contains("{dishId}", StringComparison.Ordinal))
             path = path.Replace("{dishId}", (await DishFor(endpoint, subject, branch)).ToString(), StringComparison.Ordinal);
         path = path.Replace("{kind}", "privacy", StringComparison.Ordinal);
@@ -193,6 +197,7 @@ public sealed partial class AuthorizationMatrixTests(MatrixWorldFixture fixture)
     // Thân luôn hợp lệ và không đổi dữ liệu mẫu: một ô lệch quyền không được phép trả 400 che lỗi phân quyền.
     private static JsonObject BodyFor(Endpoint endpoint, string branch) => endpoint.Key switch
     {
+        "POST /owner/orders/{orderId}/confirm-payment" => new JsonObject(),
         "POST /owner/branches" => new JsonObject
         {
             ["branch"] = OwnerSettings("Cơ sở mới"),
