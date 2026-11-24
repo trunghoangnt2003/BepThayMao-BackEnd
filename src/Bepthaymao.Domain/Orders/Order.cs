@@ -1,6 +1,15 @@
+using System.ComponentModel.DataAnnotations.Schema;
 using Bepthaymao.Domain.Common;
 
 namespace Bepthaymao.Domain.Orders;
+
+/// <summary>Nguyên nhân hủy đơn (D-04): hết hạn thì tiền về đủ được khôi phục, chủ động hủy thì giữ hủy.</summary>
+public enum CancellationKind
+{
+    Expired,
+    ByCustomer,
+    ByStaff,
+}
 
 public enum OrderStatus
 {
@@ -48,6 +57,10 @@ public sealed class Order : IBranchScoped
     public DateTimeOffset ExpiresAt { get; private set; }
     public DateTimeOffset? CancelledAt { get; private set; }
     public string? CancelReason { get; private set; }
+
+    // Khung biên dịch cho bước RED (03-01): chưa lưu cột và chưa có hành vi.
+    [NotMapped]
+    public CancellationKind? CancellationKind { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public Guid? IdempotencyKey { get; private set; }
     public string DedupeHash { get; private set; } = "";
@@ -142,6 +155,14 @@ public sealed class Order : IBranchScoped
         Status = OrderStatus.Cancelled;
         CancelledAt = now.ToUniversalTime();
         CancelReason = "customer";
+    }
+
+    /// <summary>Khung biên dịch cho bước RED (03-01): chưa có hành vi.</summary>
+    public void CancelByStaff(string reason, DateTimeOffset now)
+    {
+        _ = reason;
+        _ = now;
+        if (Status == OrderStatus.Cancelled) return;
     }
 }
 
