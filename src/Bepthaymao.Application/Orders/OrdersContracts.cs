@@ -10,6 +10,7 @@ public interface IOrderStore
     Task<bool> CodeExistsAsync(string code, CancellationToken cancellationToken);
     void Add(Order order);
     /// <summary>Đọc ngoài filter cho luồng công khai; người gọi phải kiểm số điện thoại.</summary>
+    Task LockOrderAsync(string code, CancellationToken cancellationToken);
     Task<Order?> FindByCodeAsync(string code, CancellationToken cancellationToken);
     /// <summary>Đơn đi qua filter BranchScope (Quản lý: cơ sở mình; Owner: mọi cơ sở của mình).</summary>
     Task<IReadOnlyList<Order>> ListAsync(Guid? branchId, OrderStatus? status, PaymentStatus? paymentStatus, int page, int pageSize,
@@ -37,7 +38,7 @@ public sealed record OrderItemDto(string DishName, long UnitPrice, int Quantity,
 
 public sealed record OrderDto(Guid Id, string Code, Guid BranchId, string BranchName, OrderStatus Status, PaymentStatus PaymentStatus,
     bool IsNextDay, DateOnly DeliveryDate, double? DistanceKm, long ItemsTotal, DateTimeOffset ExpiresAt, bool LatePayment,
-    IReadOnlyList<OrderItemDto> Items, DateTimeOffset CreatedAt, string? CustomerName, string? CustomerPhone, string? DeliveryAddress, string? Note);
+    IReadOnlyList<OrderItemDto> Items, DateTimeOffset CreatedAt, string? CustomerName, string? CustomerPhone, string? DeliveryAddress, string? Note, string? CancelReason = null, long OverpaidAmount = 0);
 
 public sealed record PaymentDto(string QrUrl, long Amount, string TransferContent, DateTimeOffset ExpiresAt);
 
@@ -45,7 +46,7 @@ public sealed record OrderCreatedDto(OrderDto Order, PaymentDto Payment, string 
 
 public sealed record OrderTrackingDto(OrderDto Order, PaymentDto? Payment);
 
-internal static class OrderMapping
+public static class OrderMapping
 {
     public const string ShippingNote = "Phí ship trả riêng khi nhận hàng.";
 
@@ -55,7 +56,7 @@ internal static class OrderMapping
         order.PaymentStatus == PaymentStatus.LatePaid,
         [.. order.Items.Select(item => new OrderItemDto(item.DishName, item.UnitPrice, item.Quantity, item.LineTotal))], order.CreatedAt,
         includeCustomer ? order.CustomerName : null, includeCustomer ? order.CustomerPhone : null,
-        includeCustomer ? order.DeliveryAddress : null, includeCustomer ? order.Note : null);
+        includeCustomer ? order.DeliveryAddress : null, includeCustomer ? order.Note : null, order.CancelReason, order.OverpaidAmount);
 }
 
 public static class PhoneNumbers

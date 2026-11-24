@@ -50,8 +50,10 @@ internal sealed class GetOrderQueryHandler(IOrderStore store, IOrderAccessGrants
     {
         Order order = await PublicOrderAccess.FindAsync(store, grants, query.Code, query.Phone, query.AccessTokens, cancellationToken);
         OrderBranchInfo branch = (await store.BranchesAsync([order.BranchId], cancellationToken))[order.BranchId];
-        PaymentDto? payment = order.IsPaymentOpen(clock.GetUtcNow()) && branch.BankCode is not null && branch.BankAccountNo is not null
-            ? new(qr.CreateQrUrl(branch.BankCode, branch.BankAccountNo, order.ItemsTotal, order.Code, branch.QrProvider), order.ItemsTotal, order.Code, order.ExpiresAt)
+        string? bank = order.PaymentBankCode ?? branch.BankCode;
+        string? account = order.PaymentAccountNo ?? branch.BankAccountNo;
+        PaymentDto? payment = order.IsPaymentOpen(clock.GetUtcNow()) && bank is not null && account is not null
+            ? new(qr.CreateQrUrl(bank, account, order.ItemsTotal, order.Code, branch.QrProvider), order.ItemsTotal, order.Code, order.ExpiresAt)
             : null;
         return new(order.ToDto(branch.Name, includeCustomer: false), payment);
     }
@@ -75,16 +77,17 @@ internal sealed class CancelOrderCommandHandler(IOrderStore store, IOrderAccessG
 {
     public async Task<OrderDto> Handle(CancelOrderCommand command, CancellationToken cancellationToken)
     {
-        Order order = await PublicOrderAccess.FindAsync(store, grants, command.Code, command.Phone, command.AccessTokens, cancellationToken);
-        try
+        Order? result = null;
+        await unitOfWork.ExecuteInTransactionAsync(async ct =>
         {
-            order.CancelByCustomer(clock.GetUtcNow());
-        }
-        catch (DomainRuleException)
-        {
-            throw new ConflictException("status", "Đơn này đã được thanh toán nên không hủy được. Liên hệ cơ sở nếu cần đổi.");
-        }
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+            await store.LockOrderAsync(OrderCodes.Normalize(command.Code), ct);
+            Order order = await PublicOrderAccess.FindAsync(store, grants, command.Code, command.Phone, command.AccessTokens, ct);
+            try { order.CancelByCustomer(clock.GetUtcNow()); }
+            catch (DomainRuleException) { throw new ConflictException("status", "Đơn này không còn hủy được. Liên hệ cơ sở nếu cần đổi."); }
+            await unitOfWork.SaveChangesAsync(ct);
+            result = order;
+        }, cancellationToken);
+        Order order = result!;
         OrderBranchInfo branch = (await store.BranchesAsync([order.BranchId], cancellationToken))[order.BranchId];
         return order.ToDto(branch.Name, includeCustomer: false);
     }

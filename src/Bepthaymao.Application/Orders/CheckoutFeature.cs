@@ -129,9 +129,9 @@ internal sealed class CreateOrderCommandHandler(IMenuStore menu, IOrderStore ord
     private async Task<OrderCreatedResult> ReplayAsync(Order order, CancellationToken cancellationToken)
     {
         OrderBranchInfo branch = (await orders.BranchesAsync([order.BranchId], cancellationToken))[order.BranchId];
-        if (branch.BankCode is null || branch.BankAccountNo is null)
+        if ((order.PaymentBankCode ?? branch.BankCode) is null || (order.PaymentAccountNo ?? branch.BankAccountNo) is null)
             throw new ConflictException("branchId", "Cơ sở này tạm chưa nhận đơn. Hãy chọn cơ sở khác.");
-        return new(Created(order, branch.Name, branch.BankCode, branch.BankAccountNo, branch.QrProvider), grants.Issue(order.Id), Replayed: true);
+        return new(Created(order, branch.Name, (order.PaymentBankCode ?? branch.BankCode)!, (order.PaymentAccountNo ?? branch.BankAccountNo)!, branch.QrProvider), grants.Issue(order.Id), Replayed: true);
     }
 
     private async Task<OrderCreatedResult> PlaceAsync(CreateOrderCommand command, string normalizedPhone, string dedupeHash, DateTimeOffset now,
@@ -155,6 +155,7 @@ internal sealed class CreateOrderCommandHandler(IMenuStore menu, IOrderStore ord
         Order order = Order.Place(Guid.CreateVersion7(), code, branch.Id,
             new(command.CustomerName.Trim(), normalizedPhone, command.DeliveryAddress.Trim(), command.DeliveryLat, command.DeliveryLng, distance, command.Note),
             items, !open, OpeningHours.DeliveryDate(branch.OpenTime, branch.CloseTime, now), now, command.IdempotencyKey, dedupeHash);
+        order.CapturePaymentDestination(branch.BankCode!, branch.BankAccountNo!);
         orders.Add(order);
         return new(Created(order, branch.Name, branch.BankCode!, branch.BankAccountNo!, branch.QrProvider), grants.Issue(order.Id), Replayed: false);
     }

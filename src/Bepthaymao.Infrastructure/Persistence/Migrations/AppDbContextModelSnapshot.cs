@@ -129,6 +129,98 @@ namespace Bepthaymao.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Bepthaymao.Domain.Events.InboxMessage", b =>
+                {
+                    b.Property<string>("Consumer")
+                        .HasColumnType("text")
+                        .HasColumnName("consumer");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<DateTimeOffset>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processed_at");
+
+                    b.HasKey("Consumer", "EventId")
+                        .HasName("pk_inbox_messages");
+
+                    b.ToTable("inbox_messages", (string)null);
+                });
+
+            modelBuilder.Entity("Bepthaymao.Domain.Events.OperationalAlert", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id")
+                        .HasName("pk_operational_alerts");
+
+                    b.ToTable("operational_alerts", (string)null);
+                });
+
+            modelBuilder.Entity("Bepthaymao.Domain.Events.OutboxMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<DateTimeOffset?>("ClaimedUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("claimed_until");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("published_at");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id")
+                        .HasName("pk_outbox_messages");
+
+                    b.HasIndex("PublishedAt", "OccurredAt")
+                        .HasDatabaseName("ix_outbox_messages_published_at_occurred_at");
+
+                    b.ToTable("outbox_messages", (string)null);
+                });
+
             modelBuilder.Entity("Bepthaymao.Domain.Menu.BranchDish", b =>
                 {
                     b.Property<Guid>("BranchId")
@@ -223,6 +315,26 @@ namespace Bepthaymao.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Bepthaymao.Domain.Menu.DishStat", b =>
+                {
+                    b.Property<Guid>("DishId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("dish_id");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<long>("OrderCount")
+                        .HasColumnType("bigint")
+                        .HasColumnName("order_count");
+
+                    b.HasKey("DishId", "BranchId")
+                        .HasName("pk_dish_stats");
+
+                    b.ToTable("dish_stats", (string)null);
+                });
+
             modelBuilder.Entity("Bepthaymao.Domain.Orders.Order", b =>
                 {
                     b.Property<Guid>("Id")
@@ -310,6 +422,10 @@ namespace Bepthaymao.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("items_total");
 
+                    b.Property<bool>("LatePayment")
+                        .HasColumnType("boolean")
+                        .HasColumnName("late_payment");
+
                     b.Property<DateTimeOffset?>("NextDayAcknowledgedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("next_day_acknowledged_at");
@@ -319,11 +435,35 @@ namespace Bepthaymao.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("note");
 
+                    b.Property<bool>("Overpaid")
+                        .HasColumnType("boolean")
+                        .HasColumnName("overpaid");
+
+                    b.Property<long>("OverpaidAmount")
+                        .HasColumnType("bigint")
+                        .HasColumnName("overpaid_amount");
+
+                    b.Property<DateTimeOffset?>("PaidAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("paid_at");
+
+                    b.Property<string>("PaymentAccountNo")
+                        .HasColumnType("text")
+                        .HasColumnName("payment_account_no");
+
+                    b.Property<string>("PaymentBankCode")
+                        .HasColumnType("text")
+                        .HasColumnName("payment_bank_code");
+
                     b.Property<string>("PaymentStatus")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("payment_status");
+
+                    b.Property<bool>("RestoredFromExpiry")
+                        .HasColumnType("boolean")
+                        .HasColumnName("restored_from_expiry");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -425,6 +565,128 @@ namespace Bepthaymao.Infrastructure.Persistence.Migrations
                         .HasName("pk_owners");
 
                     b.ToTable("owners", (string)null);
+                });
+
+            modelBuilder.Entity("Bepthaymao.Domain.Payments.Payment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("ActionRequired")
+                        .HasColumnType("boolean")
+                        .HasColumnName("action_required");
+
+                    b.Property<long>("Amount")
+                        .HasColumnType("bigint")
+                        .HasColumnName("amount");
+
+                    b.Property<Guid?>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<Guid?>("ConfirmedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("confirmed_by_user_id");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("method");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("text")
+                        .HasColumnName("note");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<Guid?>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<long>("OverpaidAmount")
+                        .HasColumnType("bigint")
+                        .HasColumnName("overpaid_amount");
+
+                    b.Property<Guid?>("OwnerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_id");
+
+                    b.Property<string>("PayloadHash")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("payload_hash");
+
+                    b.Property<string>("RawPayload")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("raw_payload");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTimeOffset>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("received_at");
+
+                    b.Property<long?>("SePayTransactionId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("se_pay_transaction_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_payments");
+
+                    b.HasIndex("OrderId")
+                        .HasDatabaseName("ix_payments_order_id");
+
+                    b.HasIndex("SePayTransactionId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_payments_se_pay_transaction_id");
+
+                    b.HasIndex("BranchId", "ReceivedAt")
+                        .HasDatabaseName("ix_payments_branch_id_received_at");
+
+                    b.ToTable("payments", (string)null);
+                });
+
+            modelBuilder.Entity("Bepthaymao.Domain.Payments.PaymentAudit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("action");
+
+                    b.Property<Guid?>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<Guid?>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_payment_audits");
+
+                    b.ToTable("payment_audits", (string)null);
                 });
 
             modelBuilder.Entity("Bepthaymao.Domain.Shop.ShopAbout", b =>
@@ -1018,6 +1280,15 @@ namespace Bepthaymao.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_order_items_orders_order_id");
+                });
+
+            modelBuilder.Entity("Bepthaymao.Domain.Payments.Payment", b =>
+                {
+                    b.HasOne("Bepthaymao.Domain.Orders.Order", null)
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_payments_orders_order_id");
                 });
 
             modelBuilder.Entity("Bepthaymao.Domain.Shop.ShopAbout", b =>

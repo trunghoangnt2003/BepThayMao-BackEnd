@@ -38,12 +38,10 @@ internal sealed class MenuStore(AppDbContext context) : IMenuStore
     public void AddBranchState(BranchDish state) => context.BranchDishes.Add(state);
 
     public async Task<IReadOnlyDictionary<Guid, long>> PaidQuantitiesAsync(CancellationToken cancellationToken) =>
-        await context.Orders.AsNoTracking().IgnoreQueryFilters([AppDbContext.BranchScope])
-            .Where(order => order.PaymentStatus == PaymentStatus.Paid)
-            .SelectMany(order => order.Items)
-            .GroupBy(item => item.DishId)
-            .Select(group => new { group.Key, Quantity = group.Sum(item => (long)item.Quantity) })
-            .ToDictionaryAsync(row => row.Key, row => row.Quantity, cancellationToken);
+        await context.DishStats.AsNoTracking().IgnoreQueryFilters([AppDbContext.BranchScope]).GroupBy(stat => stat.DishId)
+            .Select(group => new { Id = group.Key, Quantity = group.Sum(stat => stat.OrderCount) })
+            .ToDictionaryAsync(value => value.Id, value => value.Quantity, cancellationToken);
+
 }
 
 internal sealed class ShopStore(AppDbContext context) : IShopStore
@@ -67,6 +65,9 @@ internal sealed class ShopStore(AppDbContext context) : IShopStore
 
 internal sealed class OrderStore(AppDbContext context) : IOrderStore
 {
+    public async Task LockOrderAsync(string code, CancellationToken cancellationToken) =>
+        await context.Database.ExecuteSqlAsync($"SELECT id FROM orders WHERE code = {code} FOR UPDATE", cancellationToken);
+
     public Task<bool> CodeExistsAsync(string code, CancellationToken cancellationToken) =>
         context.Orders.IgnoreQueryFilters([AppDbContext.BranchScope]).AnyAsync(order => order.Code == code, cancellationToken);
 

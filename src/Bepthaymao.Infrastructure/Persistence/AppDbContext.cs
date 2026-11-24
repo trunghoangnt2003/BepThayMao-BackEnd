@@ -1,4 +1,7 @@
 using System.Reflection;
+using System.Text.Json;
+using Bepthaymao.Domain.Events;
+using Bepthaymao.Domain.Payments;
 using Bepthaymao.Application.Abstractions.Persistence;
 using Bepthaymao.Application.Abstractions.Security;
 using Bepthaymao.Domain.Branches;
@@ -35,6 +38,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataSc
     public DbSet<ShopPolicy> ShopPolicies => Set<ShopPolicy>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderAccessGrant> OrderAccessGrants => Set<OrderAccessGrant>();
+    public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<PaymentAudit> PaymentAudits => Set<PaymentAudit>();
+    public DbSet<DishStat> DishStats => Set<DishStat>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    public DbSet<InboxMessage> InboxMessages => Set<InboxMessage>();
+    public DbSet<OperationalAlert> OperationalAlerts => Set<OperationalAlert>();
     public const string BranchScope = "BranchScope";
 
     // Owner là superadmin trên cơ sở của mình (spec FR-003a): thấy bản ghi của mọi cơ sở có Branch.OwnerId trùng claim,
@@ -195,6 +204,36 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataSc
             order.HasMany(value => value.Items).WithOne().HasForeignKey(item => item.OrderId).OnDelete(DeleteBehavior.Cascade);
             order.Navigation(value => value.Items).UsePropertyAccessMode(PropertyAccessMode.Field);
         });
+        builder.Entity<Payment>(payment =>
+        {
+            payment.ToTable("payments");
+            payment.HasKey(value => value.Id);
+            payment.HasQueryFilter(BranchScope, value => IsSystemScope
+                || (CurrentOwnerId != null && value.OwnerId == CurrentOwnerId)
+                || (CurrentBranchId != null && value.BranchId == CurrentBranchId));
+            payment.HasIndex(value => value.SePayTransactionId).IsUnique();
+            payment.HasIndex(value => new { value.BranchId, value.ReceivedAt });
+            payment.Property(value => value.RawPayload).HasColumnType("jsonb");
+            payment.HasOne<Order>().WithMany().HasForeignKey(value => value.OrderId).OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<PaymentAudit>().ToTable("payment_audits");
+        builder.Entity<PaymentAudit>().HasKey(value => value.Id);
+        builder.Entity<DishStat>().ToTable("dish_stats");
+        builder.Entity<DishStat>().HasKey(value => new { value.DishId, value.BranchId });
+        builder.Entity<DishStat>().HasQueryFilter(BranchScope, value => IsSystemScope
+            || (CurrentBranchId != null && value.BranchId == CurrentBranchId)
+            || (CurrentOwnerId != null && Branches.Any(branch => branch.Id == value.BranchId && branch.OwnerId == CurrentOwnerId)));
+        builder.Entity<OutboxMessage>().ToTable("outbox_messages");
+        builder.Entity<OutboxMessage>().HasKey(value => value.Id);
+        builder.Entity<OutboxMessage>().Property(value => value.Payload).HasColumnType("jsonb");
+        builder.Entity<OutboxMessage>().HasIndex(value => new { value.PublishedAt, value.OccurredAt });
+        builder.Entity<InboxMessage>().ToTable("inbox_messages");
+        builder.Entity<InboxMessage>().HasKey(value => new { value.Consumer, value.EventId });
+        builder.Entity<OperationalAlert>().ToTable("operational_alerts");
+        builder.Entity<OperationalAlert>().HasKey(value => value.Id);
+        builder.Entity<OperationalAlert>().HasQueryFilter(BranchScope, value => IsSystemScope
+            || (CurrentBranchId != null && value.BranchId == CurrentBranchId)
+            || (CurrentOwnerId != null && Branches.Any(branch => branch.Id == value.BranchId && branch.OwnerId == CurrentOwnerId)));
         builder.Entity<OrderItem>(item =>
         {
             item.ToTable("order_items", table => table.HasCheckConstraint("ck_order_items_quantity", "quantity BETWEEN 1 AND 99"));
@@ -214,6 +253,38 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataSc
             grant.HasOne<Order>().WithMany().HasForeignKey(value => value.OrderId).OnDelete(DeleteBehavior.Cascade);
         });
     }
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        ChangeTracker.DetectChanges();
+        foreach (Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry<Order> entry in ChangeTracker.Entries<Order>().ToArray())
+        {
+            string? type = entry.State == EntityState.Added ? "order.created"
+                : entry.State == EntityState.Modified && entry.Property(order => order.Status).IsModified ? "order.status_changed" : null;
+            if (type is null) continue;
+            Order order = entry.Entity;
+            DateTimeOffset at = order.PaidAt ?? order.CancelledAt ?? order.CreatedAt;
+            OutboxMessages.Add(new()
+            {
+                Id = Guid.CreateVersion7(),
+                Type = type,
+                OccurredAt = at,
+                Payload = JsonSerializer.Serialize(new
+                {
+                    orderId = order.Id,
+                    code = order.Code,
+                    branchId = order.BranchId,
+                    itemsTotal = order.ItemsTotal,
+                    isNextDay = order.IsNextDay,
+                    createdAt = order.CreatedAt,
+                    from = entry.State == EntityState.Added ? null : entry.Property(value => value.Status).OriginalValue.ToString(),
+                    to = order.Status.ToString(),
+                    occurredAt = at
+                }),
+            });
+        }
+        return base.SaveChangesAsync(cancellationToken);
+    }
+
     async Task IUnitOfWork.SaveChangesAsync(CancellationToken cancellationToken) => await SaveChangesAsync(cancellationToken);
 
     async Task IUnitOfWork.ExecuteInTransactionAsync(Func<CancellationToken, Task> work, CancellationToken cancellationToken)

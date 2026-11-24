@@ -84,6 +84,53 @@ public sealed class Order : IBranchScoped
         return order;
     }
 
+    public string? PaymentBankCode { get; private set; }
+    public string? PaymentAccountNo { get; private set; }
+    public DateTimeOffset? PaidAt { get; private set; }
+    public bool LatePayment { get; private set; }
+    public bool Overpaid { get; private set; }
+    public long OverpaidAmount { get; private set; }
+    public bool RestoredFromExpiry { get; private set; }
+
+    public void CapturePaymentDestination(string bankCode, string accountNo)
+    {
+        if (PaymentBankCode is not null) return;
+        PaymentBankCode = bankCode;
+        PaymentAccountNo = accountNo;
+    }
+
+    /// <summary>Nhận đủ tiền đúng một lần. Chỉ khôi phục đơn tự hết hạn; không hồi sinh hủy chủ động.</summary>
+    public bool ReceivePayment(long amount, DateTimeOffset occurredAt, DateTimeOffset receivedAt)
+    {
+        if (amount < ItemsTotal || PaymentStatus != PaymentStatus.Unpaid) return false;
+        LatePayment = occurredAt >= ExpiresAt;
+        PaidAt = occurredAt.ToUniversalTime();
+        OverpaidAmount = amount - ItemsTotal;
+        Overpaid = OverpaidAmount > 0;
+        if (Status == OrderStatus.Cancelled && CancelReason != "expired")
+        {
+            LatePayment = true;
+            PaymentStatus = PaymentStatus.LatePaid;
+            return false;
+        }
+        if (Status != OrderStatus.PendingPayment && Status != OrderStatus.Cancelled) return false;
+        RestoredFromExpiry = Status == OrderStatus.Cancelled;
+        Status = OrderStatus.Paid;
+        PaymentStatus = LatePayment ? PaymentStatus.LatePaid : PaymentStatus.Paid;
+        CancelledAt = null;
+        CancelReason = null;
+        return true;
+    }
+
+    public bool Expire(DateTimeOffset now)
+    {
+        if (Status != OrderStatus.PendingPayment || PaymentStatus != PaymentStatus.Unpaid || now < ExpiresAt) return false;
+        Status = OrderStatus.Cancelled;
+        CancelledAt = now.ToUniversalTime();
+        CancelReason = "expired";
+        return true;
+    }
+
     public bool IsPaymentOpen(DateTimeOffset now) =>
         Status == OrderStatus.PendingPayment && PaymentStatus == PaymentStatus.Unpaid && now < ExpiresAt;
 
