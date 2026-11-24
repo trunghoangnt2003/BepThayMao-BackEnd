@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Bepthaymao.Application.Orders;
 using Bepthaymao.Domain.Events;
 using Bepthaymao.Domain.Orders;
 using Bepthaymao.Infrastructure.Payments;
@@ -31,23 +30,6 @@ public sealed class OrderExpiryTests(InfrastructureFixture infrastructure) : ICl
     {
         using IServiceScope scope = _world.OpenScope();
         return await scope.ServiceProvider.GetRequiredService<PaymentMaintenance>().ExpireAsync(Token);
-    }
-
-    private async Task<List<Order>> PlaceManyAsync(int count, int minutesAgo)
-    {
-        List<Order> orders = [];
-        for (int index = 0; index < count; index++)
-        {
-            Order order = Order.Place(Guid.NewGuid(), OrderCodes.Next(), _world.BranchA, new("Test", PaymentWorld.Phone, "Test", null, null, null, null),
-                [OrderItem.Create(Guid.NewGuid(), _world.DishId, "Xôi", 40000, 1)], false, new(2026, 11, 23), _world.Clock.GetUtcNow().AddMinutes(-minutesAgo));
-            order.CapturePaymentDestination(PaymentWorld.BankCode, PaymentWorld.SharedAccount);
-            orders.Add(order);
-        }
-        using IServiceScope scope = _world.OpenScope();
-        AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        db.Orders.AddRange(orders);
-        await db.SaveChangesAsync(Token);
-        return orders;
     }
 
     private async Task<Order> ReloadAsync(Order order)
@@ -142,7 +124,7 @@ public sealed class OrderExpiryTests(InfrastructureFixture infrastructure) : ICl
     [Fact]
     public async Task OneSweepIsBoundedAndTheNextSweepFinishesTheBacklog()
     {
-        await PlaceManyAsync(_batch + 50, minutesAgo: 20);
+        await _world.PlaceManyAsync(_batch + 50, minutesAgo: 20);
         Assert.Equal(_batch, await SweepAsync());
         Assert.Equal(50, await SweepAsync());
         Assert.Equal(0, await SweepAsync());
@@ -153,7 +135,7 @@ public sealed class OrderExpiryTests(InfrastructureFixture infrastructure) : ICl
     public async Task TwoConcurrentWorkersExpireEachOrderExactlyOnceWithOneEventEach()
     {
         const int total = 60;
-        List<Order> orders = await PlaceManyAsync(total, minutesAgo: 20);
+        List<Order> orders = await _world.PlaceManyAsync(total, minutesAgo: 20);
         TaskCompletionSource gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
         async Task<int> DrainAsync()
         {
@@ -204,7 +186,7 @@ public sealed class OrderExpiryTests(InfrastructureFixture infrastructure) : ICl
     [Fact]
     public async Task FailureAfterTheUpdateButBeforeCommitRollsEverythingBackAndTheNextSweepRetries()
     {
-        List<Order> orders = await PlaceManyAsync(3, minutesAgo: 20);
+        List<Order> orders = await _world.PlaceManyAsync(3, minutesAgo: 20);
         using (IServiceScope scope = _world.OpenScope())
         {
             AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();

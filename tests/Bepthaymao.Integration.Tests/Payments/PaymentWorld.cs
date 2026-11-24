@@ -88,6 +88,24 @@ internal sealed class PaymentWorld : IAsyncDisposable
         return order;
     }
 
+    /// <summary>Thêm nhiều đơn chưa thanh toán trong một lần lưu, để dựng tồn đọng hết hạn.</summary>
+    public async Task<List<Order>> PlaceManyAsync(int count, int minutesAgo, bool nextDay = false)
+    {
+        List<Order> orders = [];
+        for (int index = 0; index < count; index++)
+        {
+            Order order = Order.Place(Guid.NewGuid(), OrderCodes.Next(), BranchA, new("Test", Phone, "Test", null, null, null, null),
+                [OrderItem.Create(Guid.NewGuid(), DishId, "Xôi", 40000, 1)], nextDay, new(2026, 11, 23), Clock.GetUtcNow().AddMinutes(-minutesAgo));
+            order.CapturePaymentDestination(BankCode, SharedAccount);
+            orders.Add(order);
+        }
+        using IServiceScope scope = OpenScope();
+        AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.Orders.AddRange(orders);
+        await db.SaveChangesAsync(Token);
+        return orders;
+    }
+
     /// <summary>Đơn hết hạn như Worker làm (03-03), nhưng gọi thẳng miền để 03-02 không phụ thuộc Worker.</summary>
     public async Task ExpireAsync(Order order)
     {
