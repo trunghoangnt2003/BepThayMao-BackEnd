@@ -17,5 +17,6 @@ builder.Services.AddScoped<ICurrentUser, WorkerCurrentUser>();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddSingleton<OrderExpirySweeper>();
 builder.Services.AddHostedService<OrderExpiryWorker>();
+builder.Services.AddHostedService<PaymentWorker>();
 using IHost host = builder.Build();
 await host.RunAsync();

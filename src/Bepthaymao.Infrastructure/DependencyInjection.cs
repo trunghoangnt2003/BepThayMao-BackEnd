@@ -40,6 +40,7 @@ public static class DependencyInjection
         services.AddScoped<IOverviewReader, OverviewReader>();
         services.AddScoped<PaymentMaintenance>();
         services.AddScoped<Messaging.OutboxDispatcher>();
+        services.AddSingleton<Messaging.RabbitBroker>();
         services.AddScoped<IPaymentOperations, PaymentProcessor>();
         services.AddSingleton<IPaymentQrService, VietQrService>();
         services.AddSingleton<IDishImageProcessor, SkiaDishImageProcessor>();

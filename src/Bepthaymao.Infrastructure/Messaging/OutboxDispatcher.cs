@@ -2,15 +2,15 @@ using System.Text.Json;
 using Bepthaymao.Domain.Events;
 using Bepthaymao.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Exceptions;
 
 namespace Bepthaymao.Infrastructure.Messaging;
 
 public sealed record EventEnvelope(Guid EventId, string Type, DateTimeOffset OccurredAt, int Version, JsonElement Data);
 
 /// <summary>At-least-once delivery. DB transaction không đợi RabbitMQ; consumer bảo vệ side effect bằng inbox.</summary>
-public sealed class OutboxDispatcher(AppDbContext db, IConfiguration configuration, TimeProvider clock)
+public sealed class OutboxDispatcher(AppDbContext db, RabbitBroker broker, TimeProvider clock)
 {
     public const string Exchange = "bepthaymao.events";
     public const string Queue = "inapp.q";
@@ -18,31 +18,41 @@ public sealed class OutboxDispatcher(AppDbContext db, IConfiguration configurati
 
     public async Task<int> DispatchAsync(CancellationToken cancellationToken)
     {
-        ConnectionFactory factory = new()
-        {
-            Uri = new(configuration.GetConnectionString("RabbitMq")
-            ?? throw new InvalidOperationException("Thiếu ConnectionStrings:RabbitMq")),
-            AutomaticRecoveryEnabled = true
-        };
-        await using IConnection connection = await factory.CreateConnectionAsync(cancellationToken);
-        await using IChannel channel = await connection.CreateChannelAsync(new(publisherConfirmationsEnabled: true,
-            publisherConfirmationTrackingEnabled: true), cancellationToken);
-        await DeclareAsync(channel, cancellationToken);
+        await using IChannel channel = await broker.CreateConfirmChannelAsync(cancellationToken);
         int count = 0;
         for (int i = 0; i < 20; i++)
         {
             OutboxMessage? message = await ClaimAsync(cancellationToken);
             if (message is null) break;
-            using JsonDocument data = JsonDocument.Parse(message.Payload);
-            byte[] body = JsonSerializer.SerializeToUtf8Bytes(new EventEnvelope(message.Id, message.Type, message.OccurredAt, 1, data.RootElement), _json);
-            await channel.BasicPublishAsync(Exchange, message.Type, mandatory: true,
-                new BasicProperties { Persistent = true, ContentType = "application/json", MessageId = message.Id.ToString() }, body, cancellationToken);
+            if (message.Attempts >= 5)
+                await RecordAlertAsync(message.Id, "outbox.stuck", "messaging.outbox_stuck", cancellationToken);
+            try
+            {
+                using JsonDocument data = JsonDocument.Parse(message.Payload);
+                byte[] body = JsonSerializer.SerializeToUtf8Bytes(new EventEnvelope(message.Id, message.Type, message.OccurredAt, 1, data.RootElement), _json);
+                // Deadline ngắn hơn lease 30 giây; worker khác chỉ lấy lại khi lease hết hạn.
+                using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                deadline.CancelAfter(TimeSpan.FromSeconds(10));
+                await channel.BasicPublishAsync(Exchange, message.Type, mandatory: true,
+                    new BasicProperties { Persistent = true, ContentType = "application/json", MessageId = message.Id.ToString() }, body, deadline.Token);
+            }
+            catch (PublishException exception) when (exception.IsReturn)
+            {
+                MessagingMetrics.Unroutable(message.Type);
+                continue;
+            }
+            catch (JsonException)
+            {
+                await RecordAlertAsync(message.Id, "outbox.stuck", "messaging.outbox_stuck", cancellationToken);
+                continue;
+            }
             // Awaited publish includes broker confirmation; a crash before this DB update may cause safe redelivery.
-            await db.OutboxMessages.Where(value => value.Id == message.Id).ExecuteUpdateAsync(setters =>
+            await db.OutboxMessages.Where(value => value.Id == message.Id && value.ClaimedUntil == message.ClaimedUntil && value.Attempts == message.Attempts).ExecuteUpdateAsync(setters =>
                 setters.SetProperty(value => value.PublishedAt, clock.GetUtcNow()).SetProperty(value => value.ClaimedUntil, (DateTimeOffset?)null), cancellationToken);
             count++;
+            MessagingMetrics.Published(message.Type, (clock.GetUtcNow() - message.OccurredAt).TotalSeconds);
         }
-        await ConsumeOneAsync(channel, cancellationToken);
+        for (int i = 0; i < 20 && await ConsumeOneAsync(channel, cancellationToken); i++) { }
         return count;
     }
 
@@ -63,37 +73,7 @@ public sealed class OutboxDispatcher(AppDbContext db, IConfiguration configurati
         return message;
     }
 
-    public static async Task DeclareAsync(IChannel channel, CancellationToken token)
-    {
-        await channel.ExchangeDeclareAsync(Exchange, ExchangeType.Topic, durable: true, cancellationToken: token);
-        foreach (string queue in new[] { "notifier.q", "realtime.q", "webhook-out.q", Queue })
-        {
-            await channel.QueueDeclareAsync(queue, durable: true, exclusive: false, autoDelete: false, cancellationToken: token);
-            if (queue == Queue) await channel.QueueBindAsync(queue, Exchange, "payment.*", cancellationToken: token);
-            else if (queue == "webhook-out.q")
-            {
-                foreach (string key in new[] { "order.created", "order.paid", "order.status_changed", "order.expired" })
-                    await channel.QueueBindAsync(queue, Exchange, key, cancellationToken: token);
-            }
-            else
-            {
-                await channel.QueueBindAsync(queue, Exchange, "order.#", cancellationToken: token);
-                await channel.QueueBindAsync(queue, Exchange, "payment.*", cancellationToken: token);
-            }
-        }
-        await channel.QueueDeclareAsync(Queue + ".dlq", durable: true, exclusive: false, autoDelete: false, cancellationToken: token);
-        for (int retry = 1; retry <= 5; retry++)
-        {
-            Dictionary<string, object?> args = new()
-            {
-                ["x-message-ttl"] = (int)(1000 * Math.Pow(2, retry)),
-                ["x-dead-letter-exchange"] = "",
-                ["x-dead-letter-routing-key"] = Queue
-            };
-            await channel.QueueDeclareAsync(Queue + ".retry." + retry, durable: true, exclusive: false, autoDelete: false,
-                arguments: args, cancellationToken: token);
-        }
-    }
+    public static Task DeclareAsync(IChannel channel, CancellationToken token) => MessagingTopology.DeclareAsync(channel, token);
 
     public async Task<bool> ConsumeOneAsync(IChannel channel, CancellationToken token)
     {
@@ -104,10 +84,12 @@ public sealed class OutboxDispatcher(AppDbContext db, IConfiguration configurati
             await ProcessAsync(delivery.Body, token);
             await channel.BasicAckAsync(delivery.DeliveryTag, multiple: false, token);
         }
-        catch (Exception exception) when (exception is JsonException or InvalidOperationException or FormatException)
+        catch (Exception exception) when (!token.IsCancellationRequested && exception is JsonException or InvalidOperationException or FormatException or DbUpdateException or Npgsql.NpgsqlException)
         {
+            db.ChangeTracker.Clear();
             int attempt = delivery.BasicProperties.Headers?.TryGetValue("btm-retry", out object? raw) == true && raw is int number ? number : 0;
-            int next = attempt + 1;
+            bool poison = exception is JsonException or FormatException or InvalidOperationException;
+            int next = poison || attempt < 0 || attempt >= MessagingTopology.MaxRetries ? MessagingTopology.MaxRetries + 1 : attempt + 1;
             BasicProperties props = new()
             {
                 Persistent = true,
@@ -124,6 +106,8 @@ public sealed class OutboxDispatcher(AppDbContext db, IConfiguration configurati
             }
             await channel.BasicPublishAsync("", next > 5 ? Queue + ".dlq" : Queue + ".retry." + next, mandatory: true, props, delivery.Body, token);
             await channel.BasicAckAsync(delivery.DeliveryTag, multiple: false, token);
+            if (next > 5) MessagingMetrics.DeadLettered(poison ? "schema" : "retries_exhausted");
+            else MessagingMetrics.Retried(next);
         }
         return true;
     }
@@ -132,7 +116,12 @@ public sealed class OutboxDispatcher(AppDbContext db, IConfiguration configurati
     {
         EventEnvelope envelope = JsonSerializer.Deserialize<EventEnvelope>(body.Span, _json) ?? throw new JsonException();
         if (envelope.Version != 1 || envelope.EventId == Guid.Empty
-            || envelope.Type is not ("payment.late" or "payment.overpaid")) throw new FormatException("Sự kiện không hợp lệ.");
+            || envelope.Type is not ("payment.late" or "payment.overpaid")
+            || envelope.Data.ValueKind != JsonValueKind.Object
+            || !envelope.Data.TryGetProperty("orderId", out JsonElement orderId) || !orderId.TryGetGuid(out Guid orderGuid) || orderGuid == Guid.Empty
+            || !envelope.Data.TryGetProperty("branchId", out JsonElement branchId) || !branchId.TryGetGuid(out Guid branchGuid) || branchGuid == Guid.Empty)
+            throw new FormatException("Sự kiện không hợp lệ.");
+        db.ChangeTracker.Clear();
         await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction tx = await db.Database.BeginTransactionAsync(token);
         string key = "inapp:" + envelope.EventId;
         await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({key}, 0))", token);
@@ -144,24 +133,26 @@ public sealed class OutboxDispatcher(AppDbContext db, IConfiguration configurati
                 Id = Guid.CreateVersion7(),
                 Type = envelope.Type,
                 CreatedAt = clock.GetUtcNow(),
-                OrderId = envelope.Data.TryGetProperty("orderId", out JsonElement order) ? order.GetGuid() : null,
-                BranchId = envelope.Data.TryGetProperty("branchId", out JsonElement branch) ? branch.GetGuid() : null
+                OrderId = orderGuid,
+                BranchId = branchGuid
             });
             await db.SaveChangesAsync(token);
         }
         await tx.CommitAsync(token);
     }
 
-    private async Task RecordDeadLetterAsync(Guid id, CancellationToken token)
+    private Task RecordDeadLetterAsync(Guid id, CancellationToken token) => RecordAlertAsync(id, "inapp.dlq", "messaging.dead_letter", token);
+
+    private async Task RecordAlertAsync(Guid id, string consumer, string type, CancellationToken token)
     {
         db.ChangeTracker.Clear();
         await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction tx = await db.Database.BeginTransactionAsync(token);
-        string key = "dlq:" + id;
+        string key = consumer + ":" + id;
         await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({key}, 0))", token);
-        if (!await db.InboxMessages.AnyAsync(value => value.Consumer == "inapp.dlq" && value.EventId == id, token))
+        if (!await db.InboxMessages.AnyAsync(value => value.Consumer == consumer && value.EventId == id, token))
         {
-            db.InboxMessages.Add(new() { Consumer = "inapp.dlq", EventId = id, ProcessedAt = clock.GetUtcNow() });
-            db.OperationalAlerts.Add(new() { Id = Guid.CreateVersion7(), Type = "messaging.dead_letter", CreatedAt = clock.GetUtcNow() });
+            db.InboxMessages.Add(new() { Consumer = consumer, EventId = id, ProcessedAt = clock.GetUtcNow() });
+            db.OperationalAlerts.Add(new() { Id = Guid.CreateVersion7(), Type = type, CreatedAt = clock.GetUtcNow() });
             await db.SaveChangesAsync(token);
         }
         await tx.CommitAsync(token);

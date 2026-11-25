@@ -16,12 +16,18 @@ try {
   const env = buildApiEnv(settings);
   const selected = { ASPNETCORE_ENVIRONMENT: 'Development',
     ConnectionStrings__Default: env.ConnectionStrings__Default.replace('Host=127.0.0.1', 'Host=postgres').replace(`Port=${settings.POSTGRES_PORT}`, 'Port=5432'),
-    ConnectionStrings__Redis: `redis:6379,password=${settings.REDIS_PASSWORD}`,
     ConnectionStrings__RabbitMq: env.ConnectionStrings__RabbitMq.replace(`127.0.0.1:${settings.RABBITMQ_PORT}`, 'rabbitmq:5672'),
   };
-  const file = join(directory, 'runtime.env');
-  writeFileSync(file, Object.entries(selected).map(([key, value]) => `${key}=${value}`).join('\n'), { mode: 0o600 });
   for (const target of ['api', 'worker']) {
+    const targetEnv = target === 'api' ? {
+      ...selected,
+      ConnectionStrings__Redis: `redis:6379,password=${settings.REDIS_PASSWORD}`,
+      // Thư mục smoke riêng, ghi được bởi user non-root; không dùng đường dẫn dev tương đối trong image.
+      DishImages__StoragePath: '/tmp/bepthaymao-smoke/media/mon',
+      ...Object.fromEntries(Object.entries(env).filter(([key]) => key.startsWith('Jwt__') || key.startsWith('Auth__') || key.startsWith('SePay__'))),
+    } : selected;
+    const file = join(directory, `${target}.env`);
+    writeFileSync(file, Object.entries(targetEnv).map(([key, value]) => `${key}=${value}`).join('\n'), { mode: 0o600 });
     const image = `bepthaymao-${target}:dev`;
     const user = docker(['image', 'inspect', '--format', '{{.Config.User}}', image]);
     if (!user || ['0', 'root', '0:0'].includes(user)) throw new Error(`${target} is root.`);
@@ -37,9 +43,11 @@ try {
   }
   if (!ready) throw new Error('Container readiness failed.');
   const response = await fetch('http://127.0.0.1:5081/api/v1/branches');
-  if (!response.ok || (await response.json()).length !== 2) throw new Error('Container branch response failed.');
+  if (!response.ok) throw new Error(`Container branch response failed (${response.status}).`);
+  const branches = await response.json();
+  if (!Array.isArray(branches) || branches.some(branch => typeof branch.id !== 'string' || typeof branch.name !== 'string')) throw new Error('Container branch response is not a branch list.');
   if (docker(['inspect', '--format', '{{.State.Running}}', containers[1]]) !== 'true') throw new Error('Worker exited.');
-  console.log('API ready, 2 public branches, worker running; both images non-root.');
+  console.log(`API ready, ${branches.length} public branches, worker running; both images non-root.`);
 } finally {
   for (const name of containers) spawnSync('docker', ['rm', '-f', name], { stdio: 'ignore' });
   rmSync(directory, { recursive: true, force: true });

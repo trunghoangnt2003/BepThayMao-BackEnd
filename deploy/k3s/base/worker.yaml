@@ -39,8 +39,17 @@ spec:
         envFrom:
         - configMapRef:
             name: bepthaymao-config
-        - secretRef:
-            name: bepthaymao-api-secrets
+        env:
+        - name: ConnectionStrings__Default
+          valueFrom:
+            secretKeyRef:
+              name: bepthaymao-api-secrets
+              key: ConnectionStrings__Default
+        - name: ConnectionStrings__RabbitMq
+          valueFrom:
+            secretKeyRef:
+              name: bepthaymao-worker-secrets
+              key: ConnectionStrings__RabbitMq
       volumes:
       - name: tmp
         emptyDir: {}
