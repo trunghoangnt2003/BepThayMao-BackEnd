@@ -13,6 +13,7 @@ public static class PolicyNames
 {
     public const string OwnerOnly = "OwnerOnly";
     public const string ManagerOnly = "ManagerOnly";
+    public const string StaffOnly = "StaffOnly";
 }
 
 internal sealed class JwtOptions
@@ -56,12 +57,23 @@ internal static class AuthenticationSetup
                     NameClaimType = "name",
                     RoleClaimType = "role",
                 };
+                options.Events = new JwtBearerEvents
+                {
+                    OnMessageReceived = context =>
+                    {
+                        string? accessToken = context.Request.Query["access_token"];
+                        if (!string.IsNullOrEmpty(accessToken) && context.HttpContext.Request.Path.StartsWithSegments("/api/hubs/staff"))
+                            context.Token = accessToken;
+                        return Task.CompletedTask;
+                    }
+                };
             });
         services.AddAuthorization(options =>
         {
             options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
             options.AddPolicy(PolicyNames.OwnerOnly, policy => policy.RequireAuthenticatedUser().RequireRole("Owner").RequireClaim("owner_id"));
             options.AddPolicy(PolicyNames.ManagerOnly, policy => policy.RequireAuthenticatedUser().RequireRole("BranchManager").RequireClaim("branch_id"));
+            options.AddPolicy(PolicyNames.StaffOnly, policy => policy.RequireAuthenticatedUser().RequireRole("Owner", "BranchManager"));
         });
         services.AddHttpContextAccessor();
         services.AddScoped<SystemScopeGrant>();

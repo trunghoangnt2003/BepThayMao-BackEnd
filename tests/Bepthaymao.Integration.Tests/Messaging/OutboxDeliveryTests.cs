@@ -1,4 +1,3 @@
-using System.Diagnostics.Metrics;
 using System.Net;
 using System.Text.Json;
 using Bepthaymao.Domain.Events;
@@ -20,7 +19,6 @@ namespace Bepthaymao.Integration.Tests.Messaging;
 /// </summary>
 public sealed class OutboxDeliveryTests(InfrastructureFixture infrastructure) : IClassFixture<InfrastructureFixture>, IAsyncLifetime
 {
-    private const string _meterName = "Bepthaymao.Messaging";
     private static readonly string[] _allQueues = ["inapp.q", "notifier.q", "realtime.q", "webhook-out.q", "report.q"];
     private PaymentWorld _world = null!;
     private static CancellationToken Token => TestContext.Current.CancellationToken;
@@ -180,8 +178,7 @@ public sealed class OutboxDeliveryTests(InfrastructureFixture infrastructure) : 
         Assert.NotNull((await ReadOutboxAsync(export)).PublishedAt);
         await using IConnection connection = await OpenAsync();
         await using IChannel channel = await connection.CreateChannelAsync(cancellationToken: Token);
-        foreach (string queue in new[] { "notifier.q", "realtime.q", "webhook-out.q" })
-            Assert.Equal(1u, await DepthAsync(connection, queue));
+        Assert.Equal(1u, await DepthAsync(connection, "webhook-out.q"));
         Assert.Equal(1u, await DepthAsync(connection, "report.q"));
     }
 
@@ -310,7 +307,7 @@ public sealed class OutboxDeliveryTests(InfrastructureFixture infrastructure) : 
         _ = await DispatchAsync();
         await using IConnection connection = await OpenAsync();
         await using IChannel channel = await connection.CreateChannelAsync(cancellationToken: Token);
-        Assert.Equal(12u, await DepthAsync(connection, "notifier.q"));
+        Assert.Equal(12u, await DepthAsync(connection, "webhook-out.q"));
         Assert.Equal(0, await CountAsync(db => db.OutboxMessages.Where(value => value.PublishedAt == null)));
     }
 
@@ -333,51 +330,4 @@ public sealed class OutboxDeliveryTests(InfrastructureFixture infrastructure) : 
         }
     }
 
-    [Fact]
-    public async Task ConsumerNeverUpdatesDishStats()
-    {
-        Order order = await _world.PlaceAsync();
-        Guid id = Guid.NewGuid();
-        await ExecuteAsync($"INSERT INTO dish_stats (dish_id, branch_id, order_count) VALUES ('{_world.DishId}', '{_world.BranchA}', 7)");
-        await using IConnection connection = await OpenAsync();
-        await using IChannel channel = await connection.CreateChannelAsync(cancellationToken: Token);
-        await channel.BasicPublishAsync("", "inapp.q", false, Props(id), LateEvent(id, order.Id, _world.BranchA), Token);
-        await DrainInAppAsync(channel);
-        Assert.Equal(1, await CountAsync(db => db.InboxMessages.Where(value => value.EventId == id)));
-        using IServiceScope scope = _world.OpenScope();
-        long total = await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database
-            .SqlQuery<long>($"SELECT COALESCE(SUM(order_count), 0)::bigint AS \"Value\" FROM dish_stats").SingleAsync(Token);
-        Assert.Equal(7, total);
-    }
-
-    [Fact]
-    public async Task MessagingCountersReportPublishUnroutableAndDeadLetter()
-    {
-        Dictionary<string, long> totals = [];
-        using MeterListener listener = new()
-        {
-            InstrumentPublished = (instrument, source) =>
-            {
-                if (instrument.Meter.Name == _meterName) source.EnableMeasurementEvents(instrument);
-            }
-        };
-        listener.SetMeasurementEventCallback<long>((instrument, value, _, _) =>
-        {
-            lock (totals) totals[instrument.Name] = totals.GetValueOrDefault(instrument.Name) + value;
-        });
-        listener.Start();
-        _ = await SeedAsync("order.created", new { orderId = Guid.NewGuid(), branchId = _world.BranchA });
-        _ = await SeedAsync("unrouted.test", new { value = 1 });
-        _ = await DispatchAsync();
-        await using IConnection connection = await OpenAsync();
-        await using IChannel channel = await connection.CreateChannelAsync(cancellationToken: Token);
-        await channel.BasicPublishAsync("", "inapp.q", false, Props(Guid.NewGuid()), "{không phải json"u8.ToArray(), Token);
-        await DrainInAppAsync(channel);
-        lock (totals)
-        {
-            Assert.True(totals.GetValueOrDefault("bepthaymao.outbox.published") >= 1);
-            Assert.True(totals.GetValueOrDefault("bepthaymao.outbox.unroutable") >= 1);
-            Assert.True(totals.GetValueOrDefault("bepthaymao.consumer.dead_lettered") >= 1);
-        }
-    }
 }

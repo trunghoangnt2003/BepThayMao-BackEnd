@@ -18,7 +18,8 @@ using Microsoft.Extensions.Time.Testing;
 
 namespace Bepthaymao.Integration.Tests.Payments;
 
-public sealed partial class SePayWebhookTests(InfrastructureFixture infrastructure) : IClassFixture<InfrastructureFixture>, IAsyncLifetime
+[Collection(SharedInfrastructure.Name)]
+public sealed partial class SePayWebhookTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
     private const string _key = "test-only-sepay-webhook-secret-1234";
     private const string _password = "test-payment-password-123";
@@ -43,7 +44,7 @@ public sealed partial class SePayWebhookTests(InfrastructureFixture infrastructu
         await AuthTestData.CreateUserAsync(scope.ServiceProvider, "payment-owner", _password, UserRole.Owner, _owner);
         await AuthTestData.CreateUserAsync(scope.ServiceProvider, "other-payment-owner", _password, UserRole.Owner, Guid.NewGuid());
         db.Branches.Add(Branch.Create(_branch, _owner, new("Test bank", "Test street", "0900000000", 10.7, 106.7,
-            new(0, 0), new(23, 59), 10, [], "123456", "970415", null, true), _clock.GetUtcNow()));
+            new(0, 0), new(23, 59), 10, null, "123456", "970415", null, true), _clock.GetUtcNow()));
         db.Dishes.Add(Dish.Create(_dish, _owner, new("Xôi", null, 40000, null, DishCategory.XoiMan, false, 0), _clock.GetUtcNow()));
         await db.SaveChangesAsync(Token);
         await AuthTestData.CreateUserAsync(scope.ServiceProvider, "payment-manager", _password, UserRole.BranchManager, branchId: _branch);
@@ -300,7 +301,7 @@ public sealed partial class SePayWebhookTests(InfrastructureFixture infrastructu
         {
             AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             Branch branch = await db.Branches.SingleAsync(value => value.Id == _branch, Token);
-            Assert.True(branch.ApplyOwnerDetails(new("Test bank", "Test street", "0900000000", 10.7, 106.7, new(0, 0), new(23, 59), 10, [], "999999", "970436", null, true)));
+            Assert.True(branch.ApplyOwnerDetails(new("Test bank", "Test street", "0900000000", 10.7, 106.7, new(0, 0), new(23, 59), 10, null, "999999", "970436", null, true)));
             await db.SaveChangesAsync(Token);
         }
         using HttpResponseMessage toNewAccount = await SendAsync(Transfer(order, 1) with { AccountNumber = "999999", Gateway = "Vietcombank" });

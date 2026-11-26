@@ -11,6 +11,8 @@ public static class MessagingTopology
 {
     public const string Exchange = "bepthaymao.events";
     public const string InAppQueue = "inapp.q";
+    public const string NotifierQueue = "notifier.q";
+    public const string RealtimeQueue = "realtime.q";
     public const int MaxRetries = 5;
 
     private static readonly string[] _publicOrderEvents = ["order.created", "order.paid", "order.status_changed", "order.expired"];
@@ -18,9 +20,9 @@ public static class MessagingTopology
     /// <summary>Hàng đợi và các routing key gắn vào, một nguồn duy nhất cho khai báo và test.</summary>
     public static IReadOnlyDictionary<string, string[]> Bindings { get; } = new Dictionary<string, string[]>
     {
-        [InAppQueue] = ["payment.late", "payment.overpaid"],
-        ["notifier.q"] = ["order.#", "payment.late", "payment.overpaid"],
-        ["realtime.q"] = ["order.#", "payment.overpaid"],
+        [InAppQueue] = ["payment.late", "payment.overpaid", "order.abandoned"],
+        [NotifierQueue] = ["order.paid", "order.status_changed", "order.abandoned"],
+        [RealtimeQueue] = ["order.created", "order.paid", "order.status_changed", "order.expired", "order.abandoned", "payment.overpaid"],
         ["webhook-out.q"] = _publicOrderEvents,
         ["report.q"] = ["report.export_requested"],
     };

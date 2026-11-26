@@ -13,7 +13,8 @@ namespace Bepthaymao.Integration.Tests.Payments;
 /// Quét hết hạn đơn chưa thanh toán (PAY-06) trên PostgreSQL thật với FakeTimeProvider: không dùng Task.Delay thật,
 /// không dùng SQLite/in-memory để chứng minh khóa dòng.
 /// </summary>
-public sealed class OrderExpiryTests(InfrastructureFixture infrastructure) : IClassFixture<InfrastructureFixture>, IAsyncLifetime
+[Collection(SharedInfrastructure.Name)]
+public sealed class OrderExpiryTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
     // Kích thước batch của PaymentMaintenance: giữ transaction ngắn và công việc mỗi lần quét có giới hạn.
     private const int _batch = 100;

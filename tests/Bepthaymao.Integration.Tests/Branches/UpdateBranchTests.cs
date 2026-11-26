@@ -7,7 +7,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bepthaymao.Integration.Tests.Branches;
 
-public sealed class UpdateBranchTests(InfrastructureFixture infrastructure) : IClassFixture<InfrastructureFixture>
+[Collection(SharedInfrastructure.Name)]
+public sealed class UpdateBranchTests(InfrastructureFixture infrastructure)
 {
     private static readonly string[] _publicKeys = ["address", "closeTime", "id", "name", "openTime", "phone"];
 
@@ -21,7 +22,7 @@ public sealed class UpdateBranchTests(InfrastructureFixture infrastructure) : IC
         ["openTime"] = "07:30",
         ["closeTime"] = "22:00",
         ["abandonedThresholdMinutes"] = 20,
-        ["zaloRecipientIds"] = new JsonArray("z1", "z2"),
+        ["telegramChatId"] = -1001234567890L,
         ["isActive"] = isActive,
         ["bankAccountNo"] = "111222333",
         ["bankCode"] = "ACB",
@@ -50,7 +51,7 @@ public sealed class UpdateBranchTests(InfrastructureFixture infrastructure) : IC
         Assert.Equal("07:30", branch.GetProperty("openTime").GetString());
         Assert.Equal("22:00", branch.GetProperty("closeTime").GetString());
         Assert.Equal(20, branch.GetProperty("abandonedThresholdMinutes").GetInt32());
-        Assert.Equal(["z1", "z2"], branch.GetProperty("zaloRecipientIds").EnumerateArray().Select(item => item.GetString()));
+        Assert.Equal(-1001234567890L, branch.GetProperty("telegramChatId").GetInt64());
         Assert.Equal("111222333", branch.GetProperty("bankAccountNo").GetString());
         Assert.Equal("ACB", branch.GetProperty("bankCode").GetString());
         Assert.Equal("sepay-xyz", branch.GetProperty("sepayAccountRef").GetString());
@@ -72,6 +73,29 @@ public sealed class UpdateBranchTests(InfrastructureFixture infrastructure) : IC
         using HttpResponseMessage again = await owner.GetAsync(path, TestContext.Current.CancellationToken);
         using JsonDocument reread = await ReadAsync(again, HttpStatusCode.OK);
         AssertUpdated(reread.RootElement, world.BranchA1);
+
+        long? sqlChatId = await world.WithDbAsync(db => db.Database
+            .SqlQueryRaw<long?>("SELECT telegram_chat_id AS \"Value\" FROM branches WHERE id = {0}", world.BranchA1)
+            .SingleAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(-1001234567890L, sqlChatId);
+
+        JsonObject cleared = FullBody();
+        cleared["telegramChatId"] = null;
+        using StringContent clearedContent = Json(cleared);
+        using HttpResponseMessage clearedResponse = await owner.PutAsync(path, clearedContent, TestContext.Current.CancellationToken);
+        using JsonDocument clearedDoc = await ReadAsync(clearedResponse, HttpStatusCode.OK);
+        Assert.Equal(JsonValueKind.Null, clearedDoc.RootElement.GetProperty("telegramChatId").ValueKind);
+
+        using HttpResponseMessage rereadNull = await owner.GetAsync(path, TestContext.Current.CancellationToken);
+        using JsonDocument rereadNullDoc = await ReadAsync(rereadNull, HttpStatusCode.OK);
+        Assert.Equal(JsonValueKind.Null, rereadNullDoc.RootElement.GetProperty("telegramChatId").ValueKind);
+
+        JsonObject zeroChatId = FullBody();
+        zeroChatId["telegramChatId"] = 0;
+        using StringContent zeroContent = Json(zeroChatId);
+        using HttpResponseMessage badChatId = await owner.PutAsync(path, zeroContent, TestContext.Current.CancellationToken);
+        using JsonDocument chatIdProblem = await ReadAsync(badChatId, HttpStatusCode.BadRequest);
+        Assert.True(chatIdProblem.RootElement.GetProperty("errors").TryGetProperty("telegramChatId", out _), "Thiếu khóa lỗi telegramChatId.");
     }
 
     [Fact]

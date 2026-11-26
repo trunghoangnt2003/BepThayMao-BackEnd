@@ -15,7 +15,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Bepthaymao.Integration.Tests.Orders;
 
 /// <summary>Thực đơn chung, chọn cơ sở sau, đặt đơn có QR, tra cứu/hủy, danh sách theo phạm vi (Phase 2, FR-003a, FR-005a).</summary>
-public sealed class MenuOrderFlowTests(InfrastructureFixture infrastructure) : IClassFixture<InfrastructureFixture>, IAsyncLifetime
+[Collection(SharedInfrastructure.Name)]
+public sealed class MenuOrderFlowTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
     private const string _password = "mat-khau-kiem-thu-12";
     private ApiFactory _factory = null!;
@@ -61,7 +62,7 @@ public sealed class MenuOrderFlowTests(InfrastructureFixture infrastructure) : I
     public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
 
     private static BranchDetails Details(string name, double lat, double lng, TimeOnly open, TimeOnly close, bool bank) =>
-        new(name, "1 Đường Thử", "0901234567", lat, lng, open, close, 10, [], bank ? "0000000001" : null, bank ? "970436" : null, null, true);
+        new(name, "1 Đường Thử", "0901234567", lat, lng, open, close, 10, null, bank ? "0000000001" : null, bank ? "970436" : null, null, true);
 
     [Fact]
     public async Task PublicMenuListsSharedDishesWithBranchesWhereSoldOut()

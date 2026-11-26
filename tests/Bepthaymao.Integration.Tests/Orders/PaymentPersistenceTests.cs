@@ -20,7 +20,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Bepthaymao.Integration.Tests.Orders;
 
 /// <summary>Lifecycle thanh toán lưu bền (03-01): snapshot ngân hàng, kind hủy, DishStat một lần, outbox một chủ sở hữu.</summary>
-public sealed class PaymentPersistenceTests(InfrastructureFixture infrastructure) : IClassFixture<InfrastructureFixture>, IAsyncLifetime
+[Collection(SharedInfrastructure.Name)]
+public sealed class PaymentPersistenceTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
     private const string _bank = "970436";
     private const string _account = "0000000001";
@@ -43,7 +44,7 @@ public sealed class PaymentPersistenceTests(InfrastructureFixture infrastructure
         await db.Database.MigrateAsync(Token);
         db.Owners.Add(Owner.Create(_owner, "Owner persistence test", _now));
         db.Branches.Add(Branch.Create(_branch, _owner,
-            new("Cơ sở thử", "1 Đường Thử", "0901234567", 10.77, 106.70, new(0, 0), new(23, 59), 10, [], _account, _bank, null, true), _now));
+            new("Cơ sở thử", "1 Đường Thử", "0901234567", 10.77, 106.70, new(0, 0), new(23, 59), 10, null, _account, _bank, null, true), _now));
         db.Dishes.Add(Dish.Create(_dish, _owner, new("Xôi xéo", "Đậu xanh", 25000, null, DishCategory.XoiMan, true, 0), _now));
         await db.SaveChangesAsync(Token);
     }
@@ -196,7 +197,7 @@ public sealed class PaymentPersistenceTests(InfrastructureFixture infrastructure
         await MutateAsync(byStaff.Id, order =>
         {
             order.ReceivePayment(50000, _now.AddMinutes(1), _now.AddMinutes(1));
-            order.CancelByStaff("Hết nguyên liệu", _now.AddMinutes(3));
+            order.CancelByStaff(CancelReasonCode.Other, "Hết nguyên liệu", _now.AddMinutes(3));
         });
         await MutateAsync(restored.Id, order =>
         {
@@ -228,10 +229,10 @@ public sealed class PaymentPersistenceTests(InfrastructureFixture infrastructure
         Assert.Equal(2, await StatAsync());
 
         await MutateAsync(paid.Id, order => order.ReceivePayment(50000, _now.AddMinutes(1), _now.AddMinutes(1)));
-        await MutateAsync(paid.Id, order => order.CancelByStaff("Quán đóng cửa", _now.AddMinutes(2)));
+        await MutateAsync(paid.Id, order => order.CancelByStaff(CancelReasonCode.Other, "Quán đóng cửa", _now.AddMinutes(2)));
         Assert.Equal(0, await StatAsync());
         await Assert.ThrowsAsync<Bepthaymao.Domain.Common.DomainRuleException>(() =>
-            MutateAsync(paid.Id, order => order.CancelByStaff("Lần hai", _now.AddMinutes(3))));
+            MutateAsync(paid.Id, order => order.CancelByStaff(CancelReasonCode.Other, "Lần hai", _now.AddMinutes(3))));
         Assert.Equal(0, await StatAsync());
     }
 

@@ -22,4 +22,4 @@ Worker cần configure các queue tương lai để giữ event, write các queu
 
 Meter `Bepthaymao.Messaging`: `bepthaymao.outbox.published`, `.unroutable`, `.publish_lag` (giây), `.dispatch_failures`; `bepthaymao.consumer.retried`, `.dead_lettered`. Không có tag payload/PII. Exporter/cảnh báo vận hành thật cần cấu hình ở Phase 6; meter trong tiến trình chưa chứng minh dashboard hoạt động. RabbitMQ management cho biết queue depth/DLQ và consumer; Worker không tự chạy consumer của phase sau.
 
-Khi lỗi: kiểm tra kết nối/quyền broker, tuổi outbox pending và queue DLQ; sửa nguyên nhân trước khi operator redrive. Giữ nguyên envelope/eventId khi redrive để inbox chống tác dụng phụ trùng. Không purge hàng chờ và không cập nhật `published_at` thủ công để che lỗi. Quy trình này không tự gửi webhook đối tác, Zalo hoặc chuyển tiền.
+Khi lỗi: kiểm tra kết nối/quyền broker, tuổi outbox pending và queue DLQ; sửa nguyên nhân trước khi operator redrive. Giữ nguyên envelope/eventId khi redrive để inbox chống tác dụng phụ trùng. Không purge hàng chờ và không cập nhật `published_at` thủ công để che lỗi. Quy trình này không tự gửi webhook đối tác, Telegram hoặc chuyển tiền.

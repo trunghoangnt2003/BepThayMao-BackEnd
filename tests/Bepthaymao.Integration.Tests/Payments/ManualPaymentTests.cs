@@ -10,7 +10,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Bepthaymao.Integration.Tests.Payments;
 
-public sealed class ManualPaymentTests(InfrastructureFixture infrastructure) : IClassFixture<InfrastructureFixture>, IAsyncLifetime
+[Collection(SharedInfrastructure.Name)]
+public sealed class ManualPaymentTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
     private PaymentWorld _world = null!;
     private static CancellationToken Token => TestContext.Current.CancellationToken;

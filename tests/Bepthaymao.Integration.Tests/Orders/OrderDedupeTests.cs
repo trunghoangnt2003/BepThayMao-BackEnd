@@ -14,7 +14,8 @@ using Microsoft.Extensions.Time.Testing;
 namespace Bepthaymao.Integration.Tests.Orders;
 
 /// <summary>Chống đơn trùng ở POST /orders: Idempotency-Key và cửa sổ trùng nội dung (T-02-29, UX-02).</summary>
-public sealed class OrderDedupeTests(InfrastructureFixture infrastructure) : IClassFixture<InfrastructureFixture>, IAsyncLifetime
+[Collection(SharedInfrastructure.Name)]
+public sealed class OrderDedupeTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
     private readonly Guid _branchA = Guid.CreateVersion7();
     private readonly Guid _branchB = Guid.CreateVersion7();
@@ -42,9 +43,9 @@ public sealed class OrderDedupeTests(InfrastructureFixture infrastructure) : ICl
         Guid owner = Guid.CreateVersion7();
         db.Owners.Add(Owner.Create(owner, "Owner dedupe test", now));
         db.Branches.Add(Branch.Create(_branchA, owner,
-            new("Cơ sở A", "1 Đường Thử", "0901234567", 10.77, 106.70, new(0, 0), new(23, 59), 10, [], "0000000001", "970436", null, true), now));
+            new("Cơ sở A", "1 Đường Thử", "0901234567", 10.77, 106.70, new(0, 0), new(23, 59), 10, null, "0000000001", "970436", null, true), now));
         db.Branches.Add(Branch.Create(_branchB, owner,
-            new("Cơ sở B", "2 Đường Thử", "0901234567", 10.80, 106.70, new(0, 0), new(23, 59), 10, [], "0000000002", "970436", null, true), now.AddSeconds(1)));
+            new("Cơ sở B", "2 Đường Thử", "0901234567", 10.80, 106.70, new(0, 0), new(23, 59), 10, null, "0000000002", "970436", null, true), now.AddSeconds(1)));
         db.Dishes.Add(Dish.Create(_dish, owner, new("Xôi xéo", "Đậu xanh", 25000, null, DishCategory.XoiMan, true, 0), now));
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
     }

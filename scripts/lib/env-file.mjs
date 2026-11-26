@@ -37,7 +37,7 @@ export function buildApiEnv(env) {
     ConnectionStrings__Redis: `127.0.0.1:${env.REDIS_PORT},password=${env.REDIS_PASSWORD}`,
     ConnectionStrings__RabbitMq: `amqp://${encodeURIComponent(env.RABBITMQ_DEFAULT_USER)}:${encodeURIComponent(env.RABBITMQ_DEFAULT_PASS)}@127.0.0.1:${env.RABBITMQ_PORT}/`,
     'SePay__Mode': env['SePay__Mode'] ?? 'Fake',
-    'Zalo__Mode': env['Zalo__Mode'] ?? 'Fake',
+    'Telegram__Mode': env['Telegram__Mode'] ?? 'Fake',
     Auth__RefreshCookie__Secure: env.Auth__RefreshCookie__Secure ?? 'false',
     ...Object.fromEntries(Object.entries(env).filter(([key]) => key.startsWith('Jwt__') || key.startsWith('Auth__') || key.startsWith('SePay__') || key.startsWith('SEED_'))),
   };

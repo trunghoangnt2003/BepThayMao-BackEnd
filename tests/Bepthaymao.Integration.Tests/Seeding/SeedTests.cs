@@ -13,7 +13,8 @@ using Bepthaymao.Api.Security;
 
 namespace Bepthaymao.Integration.Tests.Seeding;
 
-public sealed class SeedTests(InfrastructureFixture infrastructure) : IClassFixture<InfrastructureFixture>
+[Collection(SharedInfrastructure.Name)]
+public sealed class SeedTests(InfrastructureFixture infrastructure)
 {
     private static readonly string _sampleFile = Path.Combine(RepositoryPaths.Root, "seed", "branches.sample.json");
     private const string _password = "test-seed-only-password";

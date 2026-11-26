@@ -12,7 +12,8 @@ using Bepthaymao.Api.Security;
 
 namespace Bepthaymao.Integration.Tests.Branches;
 
-public sealed class PublicBranchesEndpointTests(InfrastructureFixture infrastructure) : IClassFixture<InfrastructureFixture>
+[Collection(SharedInfrastructure.Name)]
+public sealed class PublicBranchesEndpointTests(InfrastructureFixture infrastructure)
 {
     [Fact]
     public async Task ReturnsOnlyActiveBranchesWithSixFieldsAndSeedIsIdempotent()

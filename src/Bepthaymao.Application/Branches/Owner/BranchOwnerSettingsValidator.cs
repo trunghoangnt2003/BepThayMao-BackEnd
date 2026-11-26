@@ -19,5 +19,7 @@ internal sealed class BranchOwnerSettingsValidator : AbstractValidator<BranchOwn
         RuleFor(branch => branch.BankCode).MaximumLength(20);
         RuleFor(branch => branch.SepayAccountRef).MaximumLength(100);
         RuleFor(branch => branch.QrProvider).IsInEnum();
+        RuleFor(branch => branch.TelegramChatId).NotEqual(0).When(branch => branch.TelegramChatId is not null)
+            .WithMessage("chat_id Telegram phải là số nguyên khác 0 (group có giá trị âm).");
     }
 }

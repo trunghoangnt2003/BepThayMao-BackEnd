@@ -18,6 +18,7 @@ test('dev secrets are generated once and host allowlist supports Docker SSR', ()
     assert.equal(env.ASPNETCORE_ENVIRONMENT, 'Development');
     assert.ok(env.AllowedHosts.includes('localhost'));
     assert.equal(env.SePay__Mode, 'Fake');
+    assert.equal(env.Telegram__Mode, 'Fake');
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 

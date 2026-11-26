@@ -68,6 +68,12 @@ internal sealed class OrderStore(AppDbContext context) : IOrderStore
     public async Task LockOrderAsync(string code, CancellationToken cancellationToken) =>
         await context.Database.ExecuteSqlAsync($"SELECT id FROM orders WHERE code = {code} FOR UPDATE", cancellationToken);
 
+    public async Task LockOrderByIdAsync(Guid orderId, CancellationToken cancellationToken) =>
+        await context.Database.ExecuteSqlAsync($"SELECT id FROM orders WHERE id = {orderId} FOR UPDATE", cancellationToken);
+
+    public Task<Order?> FindByIdAsync(Guid orderId, CancellationToken cancellationToken) =>
+        context.Orders.Include(order => order.Items).FirstOrDefaultAsync(order => order.Id == orderId, cancellationToken);
+
     public Task<bool> CodeExistsAsync(string code, CancellationToken cancellationToken) =>
         context.Orders.IgnoreQueryFilters([AppDbContext.BranchScope]).AnyAsync(order => order.Code == code, cancellationToken);
 
@@ -82,7 +88,10 @@ internal sealed class OrderStore(AppDbContext context) : IOrderStore
         await context.Orders.AsNoTracking().Include(order => order.Items)
             .Where(order => (branchId == null || order.BranchId == branchId) && (status == null || order.Status == status)
                 && (paymentStatus == null || order.PaymentStatus == paymentStatus))
-            .OrderByDescending(order => order.CreatedAt).ThenBy(order => order.Id)
+            .OrderByDescending(order => order.Status == OrderStatus.Paid && order.AbandonedAlertedAt != null)
+            .ThenBy(order => order.Status == OrderStatus.Paid && order.AbandonedAlertedAt != null ? order.PaidRecordedAt : null)
+            .ThenByDescending(order => order.CreatedAt)
+            .ThenBy(order => order.Id)
             .Skip((page - 1) * pageSize).Take(pageSize)
             .ToListAsync(cancellationToken);
 

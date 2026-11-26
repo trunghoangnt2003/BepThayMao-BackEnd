@@ -105,11 +105,15 @@ public sealed partial class AuthorizationMatrixTests(MatrixWorldFixture fixture)
         new("PUT", "/owner/shop-content/legal", true, false, 200),
         new("PUT", "/owner/shop-content/policies/{kind}", true, false, 200),
         new("GET", "/owner/orders", true, false, 200),
+        new("POST", "/owner/orders/{orderId}/status", true, false, 404),
         new("GET", "/manager/dishes", false, false, 200),
         new("PUT", "/manager/dishes/{dishId}/availability", false, false, 200),
         new("GET", "/manager/orders", false, false, 200),
+        new("POST", "/manager/orders/{orderId}/status", false, false, 404),
         new("GET", "/owner/overview", true, false, 200),
         new("GET", "/manager/overview", false, false, 200),
+        new("GET", "/owner/notifications", true, false, 200),
+        new("GET", "/manager/notifications", false, false, 200),
     ];
 
     private static readonly string[] _subjects = ["Anonymous", "Owner1", "Owner2", "ManagerA1", "ManagerA2", "ManagerB1"];
@@ -198,6 +202,7 @@ public sealed partial class AuthorizationMatrixTests(MatrixWorldFixture fixture)
     private static JsonObject BodyFor(Endpoint endpoint, string branch) => endpoint.Key switch
     {
         "POST /owner/orders/{orderId}/confirm-payment" => new JsonObject(),
+        "POST /manager/orders/{orderId}/status" or "POST /owner/orders/{orderId}/status" => new JsonObject { ["to"] = "Accepted" },
         "POST /owner/branches" => new JsonObject
         {
             ["branch"] = OwnerSettings("Cơ sở mới"),
@@ -217,7 +222,6 @@ public sealed partial class AuthorizationMatrixTests(MatrixWorldFixture fixture)
             ["openTime"] = "06:00",
             ["closeTime"] = "21:30",
             ["abandonedThresholdMinutes"] = 10,
-            ["zaloRecipientIds"] = new JsonArray(),
         },
     };
 
@@ -231,7 +235,6 @@ public sealed partial class AuthorizationMatrixTests(MatrixWorldFixture fixture)
         ["openTime"] = "06:00",
         ["closeTime"] = "21:30",
         ["abandonedThresholdMinutes"] = 10,
-        ["zaloRecipientIds"] = new JsonArray(),
         ["isActive"] = true,
     };
 
@@ -250,7 +253,8 @@ public sealed partial class AuthorizationMatrixTests(MatrixWorldFixture fixture)
     {
         EndpointDataSource source = fixture.World.Factory.Services.GetRequiredService<EndpointDataSource>();
         string[] protectedEndpoints = [.. source.Endpoints.OfType<RouteEndpoint>()
-            .Where(endpoint => endpoint.Metadata.GetMetadata<IAllowAnonymous>() is null)
+            .Where(endpoint => endpoint.Metadata.GetMetadata<IAllowAnonymous>() is null
+                && !endpoint.RoutePattern.RawText!.StartsWith("/api/hubs/", StringComparison.Ordinal))
             .SelectMany(endpoint => (endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods ?? ["?"])
                 .Select(method => $"{method} {Normalize(endpoint.RoutePattern.RawText!)}"))
             .Order(StringComparer.Ordinal)];

@@ -72,7 +72,7 @@ internal sealed class PaymentWorld : IAsyncDisposable
     }
 
     private Branch NewBranch(Guid id, Guid owner, string name, string account) => Branch.Create(id, owner,
-        new(name, "Test street", "0900000000", 10.7, 106.7, new(0, 0), new(23, 59), 10, [], account, BankCode, null, true), Clock.GetUtcNow());
+        new(name, "Test street", "0900000000", 10.7, 106.7, new(0, 0), new(23, 59), 10, null, account, BankCode, null, true), Clock.GetUtcNow());
 
     public IServiceScope OpenScope() => Factory.Services.CreateSystemScope();
 

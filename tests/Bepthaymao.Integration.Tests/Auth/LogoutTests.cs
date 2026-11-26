@@ -10,7 +10,8 @@ using Bepthaymao.Api.Security;
 
 namespace Bepthaymao.Integration.Tests.Auth;
 
-public sealed class LogoutTests(InfrastructureFixture infrastructure) : IClassFixture<InfrastructureFixture>
+[Collection(SharedInfrastructure.Name)]
+public sealed class LogoutTests(InfrastructureFixture infrastructure)
 {
     [Fact]
     public async Task LogoutRevokesAllAndClearsCookie()

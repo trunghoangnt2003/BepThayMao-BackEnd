@@ -9,14 +9,15 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bepthaymao.Integration.Tests.Branches;
 
-public sealed class ManagerSettingsTests(InfrastructureFixture infrastructure) : IClassFixture<InfrastructureFixture>
+[Collection(SharedInfrastructure.Name)]
+public sealed class ManagerSettingsTests(InfrastructureFixture infrastructure)
 {
     private const string _settingsPath = "/api/v1/manager/branch/settings";
 
     private static readonly string[] _viewKeys =
     [
         "abandonedThresholdMinutes", "address", "bankAccountNo", "bankCode", "closeTime", "isActive", "name",
-        "openTime", "phone", "qrProvider", "sepayAccountRef", "zaloRecipientIds",
+        "openTime", "phone", "qrProvider", "sepayAccountRef",
     ];
 
     private static object ValidSettings() => new
@@ -25,7 +26,6 @@ public sealed class ManagerSettingsTests(InfrastructureFixture infrastructure) :
         openTime = "07:00",
         closeTime = "20:00",
         abandonedThresholdMinutes = 15,
-        zaloRecipientIds = new[] { "zalo-a" },
     };
 
     private static async Task GiveBranchBankAccountAsync(AuthWorld world, Guid branchId, string name)
@@ -33,7 +33,7 @@ public sealed class ManagerSettingsTests(InfrastructureFixture infrastructure) :
         await world.WithDbAsync(async db =>
         {
             Branch branch = await db.Branches.SingleAsync(value => value.Id == branchId, TestContext.Current.CancellationToken);
-            branch.ApplyOwnerDetails(new(name, "1 Đường Thử, Quận 1", "0901234567", 10.77, 106.7, new(6, 0), new(21, 30), 10, [],
+            branch.ApplyOwnerDetails(new(name, "1 Đường Thử, Quận 1", "0901234567", 10.77, 106.7, new(6, 0), new(21, 30), 10, -100999888L,
                 "0123456789", "VCB", "sepay-" + name, true));
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
             return 0;
@@ -96,6 +96,8 @@ public sealed class ManagerSettingsTests(InfrastructureFixture infrastructure) :
     [InlineData("name", "\"Tên do quản lý tự đặt\"")]
     [InlineData("isActive", "false")]
     [InlineData("lat", "11.5")]
+    [InlineData("telegramChatId", "-100123")]
+    [InlineData("zaloRecipientIds", "[\"zalo-a\"]")]
     public async Task OwnerOnlyFieldsRejected(string field, string json)
     {
         await using AuthWorld world = await AuthWorld.CreateAsync(infrastructure);
@@ -110,8 +112,8 @@ public sealed class ManagerSettingsTests(InfrastructureFixture infrastructure) :
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
 
         Branch stored = await world.WithDbAsync(db => db.Branches.AsNoTracking().SingleAsync(value => value.Id == world.BranchA1, TestContext.Current.CancellationToken));
-        Assert.Equal(("Cơ sở A1", true, 10.77, "0123456789", "VCB", "sepay-Cơ sở A1"),
-            (stored.Name, stored.IsActive, stored.Lat, stored.BankAccountNo, stored.BankCode, stored.SepayAccountRef));
+        Assert.Equal(("Cơ sở A1", true, 10.77, "0123456789", "VCB", "sepay-Cơ sở A1", -100999888L),
+            (stored.Name, stored.IsActive, stored.Lat, stored.BankAccountNo, stored.BankCode, stored.SepayAccountRef, stored.TelegramChatId));
         Assert.Equal(("0901234567", 10), (stored.Phone, stored.AbandonedThresholdMinutes));
     }
 
@@ -119,7 +121,6 @@ public sealed class ManagerSettingsTests(InfrastructureFixture infrastructure) :
     [InlineData("openTime", "\"20:00\"", "openTime")]
     [InlineData("closeTime", "\"06:00\"", "openTime")]
     [InlineData("abandonedThresholdMinutes", "0", "abandonedThresholdMinutes")]
-    [InlineData("zaloRecipientIds", "[\"a\",\"a\"]", "zaloRecipientIds")]
     [InlineData("phone", "\"12345\"", "phone")]
     public async Task InvalidSettingsReturnCamelCaseKeys(string field, string json, string expectedKey)
     {
@@ -146,7 +147,6 @@ public sealed class ManagerSettingsTests(InfrastructureFixture infrastructure) :
         Assert.Equal("07:00", view.GetProperty("openTime").GetString());
         Assert.Equal("20:00", view.GetProperty("closeTime").GetString());
         Assert.Equal(15, view.GetProperty("abandonedThresholdMinutes").GetInt32());
-        Assert.Equal(["zalo-a"], view.GetProperty("zaloRecipientIds").EnumerateArray().Select(item => item.GetString()));
         Assert.Equal("Cơ sở A1", view.GetProperty("name").GetString());
         Assert.Equal("0123456789", view.GetProperty("bankAccountNo").GetString());
     }

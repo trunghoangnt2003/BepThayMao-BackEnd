@@ -105,5 +105,5 @@ internal sealed class AuthWorld : IAsyncDisposable
     }
 
     private static BranchDetails Details(string name) =>
-        new(name, "1 Đường Thử, Quận 1", "0901234567", 10.77, 106.7, new(6, 0), new(21, 30), 10, [], null, null, null, true);
+        new(name, "1 Đường Thử, Quận 1", "0901234567", 10.77, 106.7, new(6, 0), new(21, 30), 10, null, null, null, null, true);
 }

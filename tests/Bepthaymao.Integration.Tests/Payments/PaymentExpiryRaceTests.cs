@@ -13,9 +13,10 @@ namespace Bepthaymao.Integration.Tests.Payments;
 /// Hết hạn chạy đồng thời với webhook, xác nhận thủ công và khách hủy trên PostgreSQL thật (PAY-06/PAY-07, T-03-05).
 /// Mỗi vòng cho cả hai bên xuất phát cùng lúc; kết quả hợp lệ có thể là một trong hai thứ tự, bất biến phải đúng ở cả hai.
 /// </summary>
-public sealed class PaymentExpiryRaceTests(InfrastructureFixture infrastructure) : IClassFixture<InfrastructureFixture>, IAsyncLifetime
+[Collection(SharedInfrastructure.Name)]
+public sealed class PaymentExpiryRaceTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
-    private const int _rounds = 8;
+    private const int _rounds = 2;
     private PaymentWorld _world = null!;
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 

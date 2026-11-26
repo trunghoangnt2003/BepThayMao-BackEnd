@@ -81,7 +81,7 @@ public sealed class OrderPaymentTests
     {
         Order order = NewOrder();
         Assert.True(order.ReceivePayment(40000, _now.AddMinutes(1), _now.AddMinutes(1)));
-        order.CancelByStaff("  Hết nguyên liệu  ", _now.AddMinutes(5));
+        order.CancelByStaff(CancelReasonCode.Other, "  Hết nguyên liệu  ", _now.AddMinutes(5));
         Assert.Equal(OrderStatus.Cancelled, order.Status);
         Assert.Equal(CancellationKind.ByStaff, order.CancellationKind);
         Assert.Equal("Hết nguyên liệu", order.CancelReason);
@@ -93,16 +93,16 @@ public sealed class OrderPaymentTests
     public void StaffCancellationNeedsReasonAndCannotRepeat()
     {
         Order order = NewOrder();
-        Assert.Throws<DomainRuleException>(() => order.CancelByStaff("   ", _now));
-        order.CancelByStaff("Quán đóng cửa", _now);
-        Assert.Throws<DomainRuleException>(() => order.CancelByStaff("Lần hai", _now.AddMinutes(1)));
+        Assert.Throws<DomainRuleException>(() => order.CancelByStaff(CancelReasonCode.Other, "   ", _now));
+        order.CancelByStaff(CancelReasonCode.Other, "Quán đóng cửa", _now);
+        Assert.Throws<DomainRuleException>(() => order.CancelByStaff(CancelReasonCode.Other, "Lần hai", _now.AddMinutes(1)));
     }
 
     [Fact]
     public void PaymentOnStaffCancelledOrderIsRecordedLateAndNeverRestores()
     {
         Order order = NewOrder();
-        order.CancelByStaff("Quán đóng cửa", _now.AddMinutes(1));
+        order.CancelByStaff(CancelReasonCode.Other, "Quán đóng cửa", _now.AddMinutes(1));
         Assert.False(order.ReceivePayment(40000, _now.AddMinutes(2), _now.AddMinutes(2)));
         Assert.Equal(OrderStatus.Cancelled, order.Status);
         Assert.Equal(PaymentStatus.LatePaid, order.PaymentStatus);

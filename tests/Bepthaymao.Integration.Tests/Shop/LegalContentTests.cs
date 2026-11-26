@@ -12,7 +12,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Bepthaymao.Integration.Tests.Shop;
 
 /// <summary>Chân trang theo quy định thương mại điện tử: thông tin người bán và chính sách do chủ quán nhập.</summary>
-public sealed class LegalContentTests(InfrastructureFixture infrastructure) : IClassFixture<InfrastructureFixture>, IAsyncLifetime
+[Collection(SharedInfrastructure.Name)]
+public sealed class LegalContentTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
     private const string _password = "mat-khau-kiem-thu-12";
     private ApiFactory _factory = null!;

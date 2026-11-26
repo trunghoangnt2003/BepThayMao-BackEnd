@@ -16,7 +16,8 @@ using Microsoft.Extensions.Time.Testing;
 namespace Bepthaymao.Integration.Tests.Orders;
 
 /// <summary>Cookie HttpOnly btm_don gắn đơn: cấp khi tạo đơn/tra cứu, mở và hủy đơn không cần ?phone= trên URL (P2-NOJS, SEC-01).</summary>
-public sealed partial class OrderAccessCookieTests(InfrastructureFixture infrastructure) : IClassFixture<InfrastructureFixture>, IAsyncLifetime
+[Collection(SharedInfrastructure.Name)]
+public sealed partial class OrderAccessCookieTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
     private const string _password = "mat-khau-kiem-thu-12";
     private readonly Guid _branch = Guid.CreateVersion7();
@@ -40,7 +41,7 @@ public sealed partial class OrderAccessCookieTests(InfrastructureFixture infrast
         Guid owner = Guid.CreateVersion7();
         db.Owners.Add(Owner.Create(owner, "Owner cookie test", now));
         db.Branches.Add(Branch.Create(_branch, owner,
-            new("Cơ sở cookie", "1 Đường Thử", "0901234567", 10.77, 106.70, new(0, 0), new(23, 59), 10, [], "0000000001", "970436", null, true), now));
+            new("Cơ sở cookie", "1 Đường Thử", "0901234567", 10.77, 106.70, new(0, 0), new(23, 59), 10, null, "0000000001", "970436", null, true), now));
         db.Dishes.Add(Dish.Create(_dish, owner, new("Xôi xéo", "Đậu xanh", 25000, null, DishCategory.XoiMan, true, 0), now));
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
     }
@@ -179,7 +180,7 @@ public sealed partial class OrderAccessCookieTests(InfrastructureFixture infrast
                 Guid owner = Guid.CreateVersion7();
                 db.Owners.Add(Owner.Create(owner, "Owner cookie test", now));
                 db.Branches.Add(Branch.Create(_branch, owner,
-                    new("Cơ sở cookie", "1 Đường Thử", "0901234567", 10.77, 106.70, new(0, 0), new(23, 59), 10, [], "0000000001", "970436", null, true), now));
+                    new("Cơ sở cookie", "1 Đường Thử", "0901234567", 10.77, 106.70, new(0, 0), new(23, 59), 10, null, "0000000001", "970436", null, true), now));
                 db.Dishes.Add(Dish.Create(_dish, owner, new("Xôi xéo", "Đậu xanh", 25000, null, DishCategory.XoiMan, true, 0), now));
                 await db.SaveChangesAsync(TestContext.Current.CancellationToken);
             }

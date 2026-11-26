@@ -10,16 +10,15 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Bepthaymao.Api.Endpoints.Branches;
 
-/// <summary>Đúng năm trường Quản lý được sửa; thành viên khác (name, isActive, lat, ngân hàng...) bị từ chối bằng 400.</summary>
+/// <summary>Đúng bốn trường Quản lý được sửa; thành viên khác (name, isActive, lat, telegramChatId, ngân hàng...) bị từ chối bằng 400.</summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record BranchSettingsRequest(
     [property: JsonRequired] string Phone,
     [property: JsonRequired] string OpenTime,
     [property: JsonRequired] string CloseTime,
-    [property: JsonRequired] int AbandonedThresholdMinutes,
-    [property: JsonRequired] IReadOnlyList<string> ZaloRecipientIds)
+    [property: JsonRequired] int AbandonedThresholdMinutes)
 {
-    internal BranchSettingsData ToData() => new(Phone, OpenTime, CloseTime, AbandonedThresholdMinutes, ZaloRecipientIds);
+    internal BranchSettingsData ToData() => new(Phone, OpenTime, CloseTime, AbandonedThresholdMinutes);
 }
 
 public static class ManagerBranchSettingsEndpoints

@@ -60,6 +60,7 @@ public sealed class Order : IBranchScoped
 
     /// <summary>Nguyên nhân hủy; null khi đơn chưa bị hủy hoặc đã được khôi phục. <see cref="CancelReason"/> chỉ là lý do tự do của nhân sự.</summary>
     public CancellationKind? CancellationKind { get; private set; }
+    public CancelReasonCode? CancelReasonCode { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public Guid? IdempotencyKey { get; private set; }
     public string DedupeHash { get; private set; } = "";
@@ -99,6 +100,11 @@ public sealed class Order : IBranchScoped
     public string? PaymentBankCode { get; private set; }
     public string? PaymentAccountNo { get; private set; }
     public DateTimeOffset? PaidAt { get; private set; }
+    public DateTimeOffset? PaidRecordedAt { get; private set; }
+    public DateTimeOffset? AcceptedAt { get; private set; }
+    public DateTimeOffset? CompletedAt { get; private set; }
+    public DateTimeOffset? AbandonedAlertedAt { get; private set; }
+    public DateTimeOffset? LastTransitionAt { get; private set; }
     public bool LatePayment { get; private set; }
     public bool Overpaid { get; private set; }
     public long OverpaidAmount { get; private set; }
@@ -123,6 +129,7 @@ public sealed class Order : IBranchScoped
         if (amount <= 0 || amount < ItemsTotal || PaymentStatus != PaymentStatus.Unpaid) return false;
         LatePayment = occurredAt >= ExpiresAt;
         PaidAt = occurredAt.ToUniversalTime();
+        PaidRecordedAt = receivedAt.ToUniversalTime();
         OverpaidAmount = amount - ItemsTotal;
         Overpaid = OverpaidAmount > 0;
         if (Status == OrderStatus.Cancelled && !CanRestoreFromExpiry)
@@ -138,7 +145,49 @@ public sealed class Order : IBranchScoped
         CancelledAt = null;
         CancelReason = null;
         CancellationKind = null;
+        CancelReasonCode = null;
+        LastTransitionAt = receivedAt.ToUniversalTime();
         return true;
+    }
+
+    /// <summary>Nhận đơn đã thanh toán để chuẩn bị món.</summary>
+    public void Accept(DateTimeOffset now)
+    {
+        if (Status != OrderStatus.Paid)
+            throw new DomainRuleException("status", "Chỉ nhận được đơn đã thanh toán.");
+        DateTimeOffset utc = now.ToUniversalTime();
+        Status = OrderStatus.Accepted;
+        AcceptedAt = utc;
+        LastTransitionAt = utc;
+    }
+
+    /// <summary>Chuyển đơn đã nhận sang đang chuẩn bị.</summary>
+    public void StartPreparing(DateTimeOffset now)
+    {
+        if (Status != OrderStatus.Accepted)
+            throw new DomainRuleException("status", "Chỉ chuẩn bị được đơn đã nhận.");
+        Status = OrderStatus.Preparing;
+        LastTransitionAt = now.ToUniversalTime();
+    }
+
+    /// <summary>Chuyển đơn đang chuẩn bị sang đang giao.</summary>
+    public void StartDelivering(DateTimeOffset now)
+    {
+        if (Status != OrderStatus.Preparing)
+            throw new DomainRuleException("status", "Chỉ giao được đơn đang chuẩn bị.");
+        Status = OrderStatus.Delivering;
+        LastTransitionAt = now.ToUniversalTime();
+    }
+
+    /// <summary>Hoàn tất đơn đang giao.</summary>
+    public void Complete(DateTimeOffset now)
+    {
+        if (Status != OrderStatus.Delivering)
+            throw new DomainRuleException("status", "Chỉ hoàn tất được đơn đang giao.");
+        DateTimeOffset utc = now.ToUniversalTime();
+        Status = OrderStatus.Completed;
+        CompletedAt = utc;
+        LastTransitionAt = utc;
     }
 
     public bool Expire(DateTimeOffset now)
@@ -159,24 +208,40 @@ public sealed class Order : IBranchScoped
         Cancel(Orders.CancellationKind.ByCustomer, null, now);
     }
 
-    /// <summary>Cơ sở hủy đơn kèm lý do (đơn chưa nhận, đã thanh toán hoặc đã nhận); tiền đã thu hoàn thủ công, không tự hoàn.</summary>
-    public void CancelByStaff(string reason, DateTimeOffset now)
+    /// <summary>Cơ sở hủy đơn kèm mã lý do (đơn chưa nhận, đã thanh toán hoặc đã nhận); tiền đã thu hoàn thủ công, không tự hoàn.</summary>
+    public void CancelByStaff(CancelReasonCode code, string? note, DateTimeOffset now)
     {
-        string trimmed = reason?.Trim() ?? "";
-        if (trimmed.Length == 0) throw new DomainRuleException("reason", "Phải nhập lý do hủy đơn.");
+        if (!Enum.IsDefined(code))
+            throw new DomainRuleException("reasonCode", "Mã lý do hủy không hợp lệ.");
+        string trimmed = note?.Trim() ?? "";
+        if (code == Orders.CancelReasonCode.Other && trimmed.Length == 0)
+            throw new DomainRuleException("reason", "Phải nhập lý do hủy đơn.");
         if (trimmed.Length > CancelReasonMaxLength)
             throw new DomainRuleException("reason", $"Lý do hủy tối đa {CancelReasonMaxLength} ký tự.");
         if (Status is not (OrderStatus.PendingPayment or OrderStatus.Paid or OrderStatus.Accepted))
             throw new DomainRuleException("status", "Đơn này không còn hủy được.");
-        Cancel(Orders.CancellationKind.ByStaff, trimmed, now);
+        CancelReasonCode = code;
+        string resolvedReason = trimmed.Length > 0 ? trimmed : CancelReasonCodes.Label(code);
+        Cancel(Orders.CancellationKind.ByStaff, resolvedReason, now);
     }
 
     private void Cancel(CancellationKind kind, string? reason, DateTimeOffset now)
     {
+        DateTimeOffset utc = now.ToUniversalTime();
         Status = OrderStatus.Cancelled;
-        CancelledAt = now.ToUniversalTime();
+        CancelledAt = utc;
         CancellationKind = kind;
         CancelReason = reason;
+        if (kind != Orders.CancellationKind.ByStaff) CancelReasonCode = null;
+        LastTransitionAt = utc;
+    }
+
+    /// <summary>Đánh dấu đã phát cảnh báo đơn Paid chưa nhận quá ngưỡng (đúng một lần).</summary>
+    public bool MarkAbandonedAlerted(DateTimeOffset now)
+    {
+        if (Status != OrderStatus.Paid || AbandonedAlertedAt is not null) return false;
+        AbandonedAlertedAt = now.ToUniversalTime();
+        return true;
     }
 }
 

@@ -6,7 +6,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bepthaymao.Integration.Tests.Branches;
 
-public sealed class OwnerBranchQueryTests(InfrastructureFixture infrastructure) : IClassFixture<InfrastructureFixture>
+[Collection(SharedInfrastructure.Name)]
+public sealed class OwnerBranchQueryTests(InfrastructureFixture infrastructure)
 {
     [Fact]
     public async Task ListReturnsOnlyOwnBranches()

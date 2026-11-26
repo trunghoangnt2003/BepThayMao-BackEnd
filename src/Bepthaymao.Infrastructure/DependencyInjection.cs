@@ -3,11 +3,13 @@ using Bepthaymao.Application.Branches;
 using Bepthaymao.Application.Branches.ListPublicBranches;
 using Bepthaymao.Application.Branches.Owner;
 using Bepthaymao.Application.Menu;
+using Bepthaymao.Application.Notifications;
 using Bepthaymao.Application.Orders;
 using Bepthaymao.Application.Payments;
 using Bepthaymao.Application.Overview;
 using Bepthaymao.Application.Shop;
 using Bepthaymao.Infrastructure.Media;
+using Bepthaymao.Infrastructure.Notifications;
 using Bepthaymao.Infrastructure.Payments;
 using Bepthaymao.Infrastructure.Persistence.Menu;
 using Bepthaymao.Infrastructure.Persistence;
@@ -41,6 +43,15 @@ public static class DependencyInjection
         services.AddScoped<PaymentMaintenance>();
         services.AddScoped<Messaging.OutboxDispatcher>();
         services.AddSingleton<Messaging.RabbitBroker>();
+        services.AddScoped<INotificationReader, NotificationReader>();
+        services.AddScoped<NotifierConsumer>();
+        services.AddSingleton<FakeTelegramRecorder>();
+        services.Configure<TelegramOptions>(configuration.GetSection("Telegram"));
+        string telegramMode = configuration["Telegram:Mode"] ?? "Fake";
+        if (string.Equals(telegramMode, "Live", StringComparison.OrdinalIgnoreCase))
+            services.AddSingleton<ITelegramSender, LiveTelegramSender>();
+        else
+            services.AddSingleton<ITelegramSender, FakeTelegramSender>();
         services.AddScoped<IPaymentOperations, PaymentProcessor>();
         services.AddSingleton<IPaymentQrService, VietQrService>();
         services.AddSingleton<IDishImageProcessor, SkiaDishImageProcessor>();

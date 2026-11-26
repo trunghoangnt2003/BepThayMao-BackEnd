@@ -14,7 +14,7 @@ Owner xác nhận không cần amount, note tùy chọn; có audit người/th�
 
 ## Messaging và vận hành
 
-Outbox cùng transaction order/payment; publisher dùng durable topic, mandatory và publisher confirms; delivery ít nhất một lần. Claim30 giây, Worker poll5 giây, expiry15 giây; scoped system DB. Inbox key consumer/eventId và side-effect cùng transaction. InApp xử lý payment.late/overpaid; hàng chờ tương lai notifier/realtime/webhook-out được lưu nhưng consumer Zalo/SignalR thuộc phase4/6. Retry2/4/8/16/32 giây tối đa5 lần rồi inapp.q.dlq, có OperationalAlert bền vững. Operator theo dõi worker errors, outbox lag, expired pending và DLQ bằng Rabbit management/DB; không ghi raw payload/Authorization trong log.
+Outbox cùng transaction order/payment; publisher dùng durable topic, mandatory và publisher confirms; delivery ít nhất một lần. Claim30 giây, Worker poll5 giây, expiry15 giây; scoped system DB. Inbox key consumer/eventId và side-effect cùng transaction. InApp xử lý payment.late/overpaid; hàng chờ tương lai notifier/realtime/webhook-out được lưu nhưng consumer Telegram/SignalR thuộc phase4/6. Retry2/4/8/16/32 giây tối đa5 lần rồi inapp.q.dlq, có OperationalAlert bền vững. Operator theo dõi worker errors, outbox lag, expired pending và DLQ bằng Rabbit management/DB; không ghi raw payload/Authorization trong log.
 
 Broker lỗi không rollback order đã commit; fix broker và đợi claim hết hạn. Replay DLQ giữ nguyên eventId/consumer, không xóa inbox để ép side effect. Sao lưu DB trước migration; rollback binary chỉ với schema còn tương thích. Không chạy migration Down sau khi đã nhận tiền vì mất ledger/stats/audit; hoàn tác release bằng bản tương thích và giữ dữ liệu, xử lý forward migration.
 

@@ -25,7 +25,7 @@ public sealed class OutboxDispatcher(AppDbContext db, RabbitBroker broker, TimeP
             OutboxMessage? message = await ClaimAsync(cancellationToken);
             if (message is null) break;
             if (message.Attempts >= 5)
-                await RecordAlertAsync(message.Id, "outbox.stuck", "messaging.outbox_stuck", cancellationToken);
+                await QueueDeliveryHelper.RecordAlertAsync(db, clock, message.Id, "outbox.stuck", "messaging.outbox_stuck", cancellationToken);
             try
             {
                 using JsonDocument data = JsonDocument.Parse(message.Payload);
@@ -43,7 +43,7 @@ public sealed class OutboxDispatcher(AppDbContext db, RabbitBroker broker, TimeP
             }
             catch (JsonException)
             {
-                await RecordAlertAsync(message.Id, "outbox.stuck", "messaging.outbox_stuck", cancellationToken);
+                await QueueDeliveryHelper.RecordAlertAsync(db, clock, message.Id, "outbox.stuck", "messaging.outbox_stuck", cancellationToken);
                 continue;
             }
             // Awaited publish includes broker confirmation; a crash before this DB update may cause safe redelivery.
@@ -75,48 +75,14 @@ public sealed class OutboxDispatcher(AppDbContext db, RabbitBroker broker, TimeP
 
     public static Task DeclareAsync(IChannel channel, CancellationToken token) => MessagingTopology.DeclareAsync(channel, token);
 
-    public async Task<bool> ConsumeOneAsync(IChannel channel, CancellationToken token)
-    {
-        BasicGetResult? delivery = await channel.BasicGetAsync(Queue, autoAck: false, token);
-        if (delivery is null) return false;
-        try
-        {
-            await ProcessAsync(delivery.Body, token);
-            await channel.BasicAckAsync(delivery.DeliveryTag, multiple: false, token);
-        }
-        catch (Exception exception) when (!token.IsCancellationRequested && exception is JsonException or InvalidOperationException or FormatException or DbUpdateException or Npgsql.NpgsqlException)
-        {
-            db.ChangeTracker.Clear();
-            int attempt = delivery.BasicProperties.Headers?.TryGetValue("btm-retry", out object? raw) == true && raw is int number ? number : 0;
-            bool poison = exception is JsonException or FormatException or InvalidOperationException;
-            int next = poison || attempt < 0 || attempt >= MessagingTopology.MaxRetries ? MessagingTopology.MaxRetries + 1 : attempt + 1;
-            BasicProperties props = new()
-            {
-                Persistent = true,
-                ContentType = "application/json",
-                MessageId = delivery.BasicProperties.MessageId,
-                Headers = new Dictionary<string, object?> { ["btm-retry"] = next }
-            };
-            if (next > 5)
-            {
-                // Durable alert is committed before ack; stable key prevents duplicate alert after a crash.
-                Guid id = Guid.TryParse(delivery.BasicProperties.MessageId, out Guid parsed) ? parsed
-                    : new Guid(System.Security.Cryptography.SHA256.HashData(delivery.Body.Span).AsSpan(0, 16));
-                await RecordDeadLetterAsync(id, token);
-            }
-            await channel.BasicPublishAsync("", next > 5 ? Queue + ".dlq" : Queue + ".retry." + next, mandatory: true, props, delivery.Body, token);
-            await channel.BasicAckAsync(delivery.DeliveryTag, multiple: false, token);
-            if (next > 5) MessagingMetrics.DeadLettered(poison ? "schema" : "retries_exhausted");
-            else MessagingMetrics.Retried(next);
-        }
-        return true;
-    }
+    public Task<bool> ConsumeOneAsync(IChannel channel, CancellationToken token) =>
+        QueueDeliveryHelper.ConsumeOneAsync(db, clock, channel, Queue, (body, _, ct) => ProcessAsync(body, ct), token);
 
     public async Task ProcessAsync(ReadOnlyMemory<byte> body, CancellationToken token)
     {
         EventEnvelope envelope = JsonSerializer.Deserialize<EventEnvelope>(body.Span, _json) ?? throw new JsonException();
         if (envelope.Version != 1 || envelope.EventId == Guid.Empty
-            || envelope.Type is not ("payment.late" or "payment.overpaid")
+            || envelope.Type is not ("payment.late" or "payment.overpaid" or "order.abandoned")
             || envelope.Data.ValueKind != JsonValueKind.Object
             || !envelope.Data.TryGetProperty("orderId", out JsonElement orderId) || !orderId.TryGetGuid(out Guid orderGuid) || orderGuid == Guid.Empty
             || !envelope.Data.TryGetProperty("branchId", out JsonElement branchId) || !branchId.TryGetGuid(out Guid branchGuid) || branchGuid == Guid.Empty)
@@ -136,23 +102,25 @@ public sealed class OutboxDispatcher(AppDbContext db, RabbitBroker broker, TimeP
                 OrderId = orderGuid,
                 BranchId = branchGuid
             });
-            await db.SaveChangesAsync(token);
-        }
-        await tx.CommitAsync(token);
-    }
-
-    private Task RecordDeadLetterAsync(Guid id, CancellationToken token) => RecordAlertAsync(id, "inapp.dlq", "messaging.dead_letter", token);
-
-    private async Task RecordAlertAsync(Guid id, string consumer, string type, CancellationToken token)
-    {
-        db.ChangeTracker.Clear();
-        await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction tx = await db.Database.BeginTransactionAsync(token);
-        string key = consumer + ":" + id;
-        await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({key}, 0))", token);
-        if (!await db.InboxMessages.AnyAsync(value => value.Consumer == consumer && value.EventId == id, token))
-        {
-            db.InboxMessages.Add(new() { Consumer = consumer, EventId = id, ProcessedAt = clock.GetUtcNow() });
-            db.OperationalAlerts.Add(new() { Id = Guid.CreateVersion7(), Type = type, CreatedAt = clock.GetUtcNow() });
+            if (envelope.Type == "order.abandoned")
+            {
+                string? orderCode = await db.Orders.Where(o => o.Id == orderGuid).Select(o => o.Code).SingleOrDefaultAsync(token);
+                int? waited = envelope.Data.TryGetProperty("waitedMinutes", out JsonElement waitedEl) && waitedEl.TryGetInt32(out int w) ? w : null;
+                db.Notifications.Add(new()
+                {
+                    Id = Guid.CreateVersion7(),
+                    Type = NotificationType.AbandonedAlert,
+                    Channel = NotificationChannel.InApp,
+                    Status = NotificationStatus.Sent,
+                    Attempts = 1,
+                    BranchId = branchGuid,
+                    OrderId = orderGuid,
+                    OrderCode = orderCode,
+                    WaitedMinutes = waited,
+                    CreatedAt = clock.GetUtcNow(),
+                    SentAt = clock.GetUtcNow()
+                });
+            }
             await db.SaveChangesAsync(token);
         }
         await tx.CommitAsync(token);

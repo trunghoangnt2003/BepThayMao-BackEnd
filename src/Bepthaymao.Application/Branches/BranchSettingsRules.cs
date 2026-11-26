@@ -4,19 +4,17 @@ using FluentValidation;
 
 namespace Bepthaymao.Application.Branches;
 
-/// <summary>Năm trường mà cả Chủ sở hữu lẫn Quản lý cùng được sửa trên một cơ sở.</summary>
+/// <summary>Bốn trường mà cả Chủ sở hữu lẫn Quản lý cùng được sửa trên một cơ sở.</summary>
 public interface IBranchSettingsFields
 {
     string Phone { get; }
     string OpenTime { get; }
     string CloseTime { get; }
     int AbandonedThresholdMinutes { get; }
-    IReadOnlyList<string> ZaloRecipientIds { get; }
 }
 
-/// <summary>Thân <c>BranchSettings</c> của hợp đồng: đúng năm trường Quản lý được sửa.</summary>
-public sealed record BranchSettingsData(string Phone, string OpenTime, string CloseTime, int AbandonedThresholdMinutes,
-    IReadOnlyList<string> ZaloRecipientIds) : IBranchSettingsFields;
+/// <summary>Thân <c>BranchSettings</c> của hợp đồng: đúng bốn trường Quản lý được sửa.</summary>
+public sealed record BranchSettingsData(string Phone, string OpenTime, string CloseTime, int AbandonedThresholdMinutes) : IBranchSettingsFields;
 
 internal static partial class BranchSettingsPatterns
 {
@@ -47,9 +45,5 @@ internal sealed class BranchSettingsRules<T> : AbstractValidator<T> where T : IB
         });
         RuleFor(settings => settings.AbandonedThresholdMinutes).InclusiveBetween(1, 1440)
             .WithMessage("Nhập số phút là số nguyên từ 1 đến 1440.");
-        RuleFor(settings => settings.ZaloRecipientIds).Must(ids => ids is not null && ids.Count <= 20
-                && ids.All(id => id is not null && id.Trim().Length is >= 1 and <= 64)
-                && ids.Select(id => id.Trim()).Distinct(StringComparer.Ordinal).Count() == ids.Count)
-            .WithMessage("Nhập tối đa 20 ID Zalo không trùng, mỗi ID từ 1 đến 64 ký tự.");
     }
 }

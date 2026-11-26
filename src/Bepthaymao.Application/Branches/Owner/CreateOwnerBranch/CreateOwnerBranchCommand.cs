@@ -11,8 +11,9 @@ using FluentValidation;
 namespace Bepthaymao.Application.Branches.Owner.CreateOwnerBranch;
 
 public sealed record BranchOwnerSettingsData(string Name, string Address, string Phone, double Lat, double Lng, string OpenTime,
-    string CloseTime, int AbandonedThresholdMinutes, IReadOnlyList<string> ZaloRecipientIds, string? BankAccountNo,
-    string? BankCode, string? SepayAccountRef, bool IsActive, QrProvider QrProvider = QrProvider.VietQR) : IBranchSettingsFields;
+    string CloseTime, int AbandonedThresholdMinutes, string? BankAccountNo,
+    string? BankCode, string? SepayAccountRef, bool IsActive, QrProvider QrProvider = QrProvider.VietQR,
+    long? TelegramChatId = null) : IBranchSettingsFields;
 public sealed record ManagerAccountData(string Identifier, string Password);
 public sealed record CreateOwnerBranchCommand(BranchOwnerSettingsData Branch, ManagerAccountData Manager) : ICommand<BranchResponse>;
 
@@ -48,7 +49,7 @@ internal sealed class CreateOwnerBranchCommandHandler(ICurrentUser currentUser, 
         BranchDetails details = new(data.Name, data.Address, data.Phone, data.Lat, data.Lng,
             TimeOnly.ParseExact(data.OpenTime, "HH:mm", CultureInfo.InvariantCulture),
             TimeOnly.ParseExact(data.CloseTime, "HH:mm", CultureInfo.InvariantCulture),
-            data.AbandonedThresholdMinutes, data.ZaloRecipientIds, data.BankAccountNo, data.BankCode, data.SepayAccountRef, data.IsActive, data.QrProvider);
+            data.AbandonedThresholdMinutes, data.TelegramChatId, data.BankAccountNo, data.BankCode, data.SepayAccountRef, data.IsActive, data.QrProvider);
         Branch branch = Branch.Create(Guid.CreateVersion7(), ownerId, details, clock.GetUtcNow());
         string? managerIdentifier = null;
         // UserManager tự gọi SaveChanges trên cùng DbContext: cơ sở, user và user_roles cùng nằm trong transaction này.

@@ -12,10 +12,13 @@ public sealed class InfrastructureFixture : IAsyncLifetime
         Npgsql.NpgsqlConnectionStringBuilder builder = new(PostgresConnectionString)
         {
             Database = "test_" + Guid.NewGuid().ToString("N"),
+            MaxPoolSize = 5,
         };
         return Task.FromResult(builder.ConnectionString);
     }
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18.6-alpine").Build();
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18.6-alpine")
+        .WithCommand("-c", "max_connections=500")
+        .Build();
     private readonly RedisContainer _redis = new RedisBuilder("redis:8.10.3-alpine").Build();
     private readonly IContainer _rabbit = new ContainerBuilder("rabbitmq:4.4-management-alpine")
         .WithPortBinding(5672, true)

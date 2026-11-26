@@ -12,7 +12,8 @@ using Bepthaymao.Api.Security;
 
 namespace Bepthaymao.Integration.Tests.Auth;
 
-public sealed class RefreshRotationTests(InfrastructureFixture infrastructure) : IClassFixture<InfrastructureFixture>
+[Collection(SharedInfrastructure.Name)]
+public sealed class RefreshRotationTests(InfrastructureFixture infrastructure)
 {
     [Fact]
     public async Task RefreshRotatesToken()
@@ -48,7 +49,7 @@ public sealed class RefreshRotationTests(InfrastructureFixture infrastructure) :
             AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             Guid branchOwner = Guid.CreateVersion7();
             db.Owners.Add(Bepthaymao.Domain.Owners.Owner.Create(branchOwner, "Test owner", DateTimeOffset.UtcNow));
-            db.Branches.Add(Branch.Create(newBranch, branchOwner, new("New branch", "Address", "0901234567", 10, 106, new(6, 0), new(21, 30), 10, [], null, null, null, true), DateTimeOffset.UtcNow));
+            db.Branches.Add(Branch.Create(newBranch, branchOwner, new("New branch", "Address", "0901234567", 10, 106, new(6, 0), new(21, 30), 10, null, null, null, null, true), DateTimeOffset.UtcNow));
             var user = await db.Users.SingleAsync(TestContext.Current.CancellationToken);
             user.BranchId = newBranch;
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -128,7 +129,7 @@ public sealed class RefreshRotationTests(InfrastructureFixture infrastructure) :
         {
             Guid branchOwner = Guid.CreateVersion7();
             db.Owners.Add(Bepthaymao.Domain.Owners.Owner.Create(branchOwner, "Test owner", DateTimeOffset.UtcNow));
-            db.Branches.Add(Branch.Create(branch, branchOwner, new("Branch", "Address", "0901234567", 10, 106, new(6, 0), new(21, 30), 10, [], null, null, null, true), DateTimeOffset.UtcNow));
+            db.Branches.Add(Branch.Create(branch, branchOwner, new("Branch", "Address", "0901234567", 10, 106, new(6, 0), new(21, 30), 10, null, null, null, null, true), DateTimeOffset.UtcNow));
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
         await AuthTestData.CreateUserAsync(scope.ServiceProvider, "refresh-test", "test-password-only", manager ? UserRole.BranchManager : UserRole.Owner,

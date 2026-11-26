@@ -4,6 +4,7 @@ using Bepthaymao.Api.Security;
 using Bepthaymao.Application.Abstractions.Errors;
 using Bepthaymao.Application.Abstractions.Messaging;
 using Bepthaymao.Application.Orders;
+using Bepthaymao.Application.Orders.ChangeOrderStatus;
 using Bepthaymao.Application.Overview;
 using Bepthaymao.Domain.Orders;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -34,6 +35,9 @@ public sealed record CancelOrderRequest([property: JsonRequired] string Code, st
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record GrantOrderAccessRequest([property: JsonRequired] string Phone);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record ChangeOrderStatusRequest([property: JsonRequired] OrderStatus To, CancelReasonCode? ReasonCode = null, string? Reason = null);
 
 public static class OrderEndpoints
 {
@@ -105,12 +109,35 @@ public static class OrderEndpoints
             .WithName("listManagerOrders").WithTags("Manager").WithSummary("Đơn của cơ sở mình (lọc theo trạng thái, thanh toán)")
             .WithDescription("Đơn của cơ sở mình (lọc theo trạng thái, thanh toán)").RequireAuthorization(PolicyNames.ManagerOnly)
             .ProducesProblem(StatusCodes.Status401Unauthorized).ProducesProblem(StatusCodes.Status403Forbidden);
+        v1.MapPost("/manager/orders/{orderId:guid}/status", async (Guid orderId, ChangeOrderStatusRequest request,
+            [FromServices] ICommandHandler<ChangeOrderStatusCommand, OrderDto> handler, CancellationToken cancellationToken) =>
+            TypedResults.Ok(await handler.Handle(new(orderId, request.To, request.ReasonCode, request.Reason), cancellationToken)))
+            .WithName("changeOrderStatus").WithTags("Manager").WithSummary("Chuyển trạng thái đơn (nhận, đang làm, giao, hoàn tất, hủy)")
+            .WithDescription("Chỉ chuyển bước kế tiếp Paid→Accepted→Preparing→Delivering→Completed; hủy được từ PendingPayment, Paid, Accepted (D-21); lùi, nhảy bước hoặc lặp trạng thái hiện tại trả 409 (D-12). Đơn ngoài cơ sở trong claim trả 404.")
+            .RequireAuthorization(PolicyNames.ManagerOnly)
+            .Produces<OrderDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
         v1.MapGet("/owner/orders", async ([FromQuery] Guid? branchId, [FromQuery] OrderStatus? status, [FromQuery] PaymentStatus? paymentStatus,
             [FromQuery] int? page, [FromServices] IQueryHandler<ListOrdersQuery, IReadOnlyList<OrderDto>> handler, CancellationToken cancellationToken) =>
             TypedResults.Ok(await handler.Handle(new(branchId, status, paymentStatus, page ?? 1), cancellationToken)))
             .WithName("listOwnerOrders").WithTags("Owner").WithSummary("Đơn của mọi cơ sở mình sở hữu, hoặc một cơ sở")
             .WithDescription("Owner là superadmin trên cơ sở của mình; branchId của Owner khác trả 403.").RequireAuthorization(PolicyNames.OwnerOnly)
             .ProducesOwnerProblems();
+        v1.MapPost("/owner/orders/{orderId:guid}/status", async (Guid orderId, ChangeOrderStatusRequest request,
+            [FromServices] ICommandHandler<ChangeOrderStatusCommand, OrderDto> handler, CancellationToken cancellationToken) =>
+            TypedResults.Ok(await handler.Handle(new(orderId, request.To, request.ReasonCode, request.Reason), cancellationToken)))
+            .WithName("changeOwnerOrderStatus").WithTags("Owner").WithSummary("Chuyển trạng thái đơn ở mọi cơ sở mình sở hữu (nhận, đang làm, giao, hoàn tất, hủy)")
+            .WithDescription("Cùng quy tắc bước với route Manager (D-15a); đơn của Owner khác trả 404.")
+            .RequireAuthorization(PolicyNames.OwnerOnly)
+            .Produces<OrderDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesOwnerProblems()
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
         v1.MapGet("/owner/overview", async ([FromQuery] Guid? branchId, [FromServices] IQueryHandler<GetOverviewQuery, OverviewDto> handler,
             CancellationToken cancellationToken) => TypedResults.Ok(await handler.Handle(new(branchId), cancellationToken)))
             .WithName("getOwnerOverview").WithTags("Owner").WithSummary("Tổng quan hôm nay của mọi cơ sở mình sở hữu, hoặc một cơ sở")

@@ -16,7 +16,8 @@ namespace Bepthaymao.Integration.Tests.Payments;
 /// Vòng quét của Worker (15 giây, tắt dần, thử lại sau lỗi) và dọn bản ghi hết hạn, điều khiển bằng thời gian giả:
 /// code được kiểm không dùng Task.Delay thật; chỉ phần chờ điều kiện của test mới poll thời gian thật.
 /// </summary>
-public sealed class OrderExpirySweeperTests(InfrastructureFixture infrastructure) : IClassFixture<InfrastructureFixture>, IAsyncLifetime
+[Collection(SharedInfrastructure.Name)]
+public sealed class OrderExpirySweeperTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
     private PaymentWorld _world = null!;
     private static CancellationToken Token => TestContext.Current.CancellationToken;
@@ -82,26 +83,20 @@ public sealed class OrderExpirySweeperTests(InfrastructureFixture infrastructure
     public async Task LoopSweepsEveryFifteenSecondsCancelsAtExactlyFifteenMinutesAndStopsGracefully()
     {
         Order order = await _world.PlaceAsync();
-        DateTimeOffset start = _world.Clock.GetUtcNow();
         (OrderExpirySweeper sweeper, ObservableTimeProvider time, _) = NewSweeper();
         using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(Token);
         Task run = Task.Run(() => sweeper.RunAsync(stop.Token), Token);
         await WaitUntilAsync(() => time.Timers >= 1);
         Assert.Equal(1, sweeper.CompletedSweeps);
 
-        TimeSpan? cancelledAfter = null;
-        for (int step = 1; step <= 70 && cancelledAfter is null; step++)
-        {
-            _world.Clock.Advance(OrderExpirySweeper.Interval);
-            await WaitUntilAsync(() => time.Timers >= step + 1);
-            TimeSpan elapsed = _world.Clock.GetUtcNow() - start;
-            OrderStatus status = await StatusAsync(order);
-            if (status == OrderStatus.Cancelled) cancelledAfter = elapsed;
-            else Assert.True(elapsed < Order.PaymentWindow, $"Đơn chưa hủy dù đã {elapsed}.");
-        }
-        // Hủy ngay lần quét đầu tiên chạm hạn: trễ tối đa một chu kỳ quét, xa dưới mục tiêu 1 phút.
-        Assert.Equal(Order.PaymentWindow, cancelledAfter);
-        Assert.True(sweeper.CompletedSweeps >= 61);
+        _world.Clock.Advance(Order.PaymentWindow - OrderExpirySweeper.Interval);
+        await WaitUntilAsync(() => time.Timers >= 2);
+        Assert.Equal(OrderStatus.PendingPayment, await StatusAsync(order));
+
+        _world.Clock.Advance(OrderExpirySweeper.Interval);
+        await WaitUntilAsync(() => time.Timers >= 3);
+        Assert.Equal(OrderStatus.Cancelled, await StatusAsync(order));
+        Assert.True(sweeper.CompletedSweeps >= 3);
 
         await stop.CancelAsync();
         await run.WaitAsync(TimeSpan.FromSeconds(10), Token);

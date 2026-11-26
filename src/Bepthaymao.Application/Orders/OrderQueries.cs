@@ -30,6 +30,18 @@ internal sealed class GrantOrderAccessCommandValidator : AbstractValidator<Grant
 /// </summary>
 public sealed record ListOrdersQuery(Guid? BranchId, OrderStatus? Status, PaymentStatus? PaymentStatus, int Page) : IQuery<IReadOnlyList<OrderDto>>;
 
+public sealed record AuthorizeOrderWatchQuery(string Code, string? Phone, IReadOnlyList<string> AccessTokens) : IQuery<Guid>;
+
+internal sealed class AuthorizeOrderWatchQueryHandler(IOrderStore store, IOrderAccessGrants grants)
+    : IQueryHandler<AuthorizeOrderWatchQuery, Guid>
+{
+    public async Task<Guid> Handle(AuthorizeOrderWatchQuery query, CancellationToken cancellationToken)
+    {
+        Order order = await PublicOrderAccess.FindAsync(store, grants, query.Code, query.Phone, query.AccessTokens, cancellationToken);
+        return order.Id;
+    }
+}
+
 internal static class PublicOrderAccess
 {
     /// <summary>Sai mã, sai số điện thoại, token sai/hết hạn/của đơn khác và đơn không tồn tại đều trả cùng một 404 (không lộ tồn tại, K5).</summary>

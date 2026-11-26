@@ -12,6 +12,10 @@ public interface IOrderStore
     /// <summary>Đọc ngoài filter cho luồng công khai; người gọi phải kiểm số điện thoại.</summary>
     Task LockOrderAsync(string code, CancellationToken cancellationToken);
     Task<Order?> FindByCodeAsync(string code, CancellationToken cancellationToken);
+    /// <summary>Khóa dòng đơn theo Id trong transaction đang mở (không lọc scope).</summary>
+    Task LockOrderByIdAsync(Guid orderId, CancellationToken cancellationToken);
+    /// <summary>Tìm đơn theo Id qua filter BranchScope kèm Items.</summary>
+    Task<Order?> FindByIdAsync(Guid orderId, CancellationToken cancellationToken);
     /// <summary>Đơn đi qua filter BranchScope (Quản lý: cơ sở mình; Owner: mọi cơ sở của mình).</summary>
     Task<IReadOnlyList<Order>> ListAsync(Guid? branchId, OrderStatus? status, PaymentStatus? paymentStatus, int page, int pageSize,
         CancellationToken cancellationToken);
@@ -39,7 +43,9 @@ public sealed record OrderItemDto(string DishName, long UnitPrice, int Quantity,
 public sealed record OrderDto(Guid Id, string Code, Guid BranchId, string BranchName, OrderStatus Status, PaymentStatus PaymentStatus,
     bool IsNextDay, DateOnly DeliveryDate, double? DistanceKm, long ItemsTotal, DateTimeOffset ExpiresAt, bool LatePayment,
     IReadOnlyList<OrderItemDto> Items, DateTimeOffset CreatedAt, string? CustomerName, string? CustomerPhone, string? DeliveryAddress, string? Note,
-    DateTimeOffset? PaidAt = null, CancellationKind? CancellationKind = null, bool Overpaid = false, long OverpaidAmount = 0);
+    DateTimeOffset? PaidAt = null, CancellationKind? CancellationKind = null, bool Overpaid = false, long OverpaidAmount = 0,
+    DateTimeOffset? PaidRecordedAt = null, DateTimeOffset? AcceptedAt = null, DateTimeOffset? CompletedAt = null,
+    DateTimeOffset? AbandonedAlertedAt = null, CancelReasonCode? CancelReasonCode = null, string? CancelReason = null);
 
 public sealed record PaymentDto(string QrUrl, long Amount, string TransferContent, DateTimeOffset ExpiresAt);
 
@@ -58,7 +64,9 @@ public static class OrderMapping
         [.. order.Items.Select(item => new OrderItemDto(item.DishName, item.UnitPrice, item.Quantity, item.LineTotal))], order.CreatedAt,
         includeCustomer ? order.CustomerName : null, includeCustomer ? order.CustomerPhone : null,
         includeCustomer ? order.DeliveryAddress : null, includeCustomer ? order.Note : null,
-        order.PaidAt, order.CancellationKind, order.Overpaid, includeCustomer ? order.OverpaidAmount : 0);
+        order.PaidAt, order.CancellationKind, order.Overpaid, includeCustomer ? order.OverpaidAmount : 0,
+        order.PaidRecordedAt, order.AcceptedAt, order.CompletedAt, order.AbandonedAlertedAt,
+        includeCustomer ? order.CancelReasonCode : null, includeCustomer ? order.CancelReason : null);
 }
 
 public static class PhoneNumbers

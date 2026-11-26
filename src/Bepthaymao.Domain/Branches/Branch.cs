@@ -12,7 +12,7 @@ public sealed partial class Branch
     public double Lat { get; private set; }
     public double Lng { get; private set; }
     public int AbandonedThresholdMinutes { get; private set; }
-    public List<string> ZaloRecipientIds { get; private set; } = [];
+    public long? TelegramChatId { get; private set; }
     public string? BankAccountNo { get; private set; }
     public string? BankCode { get; private set; }
     public string? SepayAccountRef { get; private set; }
@@ -37,7 +37,7 @@ public sealed partial class Branch
     public bool ApplyOwnerDetails(BranchDetails details)
     {
         (string name, string address, string phone, double lat, double lng, TimeOnly openTime, TimeOnly closeTime,
-            int abandonedThresholdMinutes, IReadOnlyList<string> zaloRecipientIds, string? bankAccountNo,
+            int abandonedThresholdMinutes, long? telegramChatId, string? bankAccountNo,
             string? bankCode, string? sepayAccountRef, bool isActive, QrProvider qrProvider) = details;
         if (!Enum.IsDefined(qrProvider)) throw new DomainRuleException("qrProvider", "Chọn VietQR hoặc SePay.");
         name = name.Trim();
@@ -49,32 +49,30 @@ public sealed partial class Branch
         if (!double.IsFinite(lat) || lat is < -90 or > 90) throw new DomainRuleException("lat", "Vĩ độ nằm trong khoảng từ -90 đến 90.");
         if (!double.IsFinite(lng) || lng is < -180 or > 180) throw new DomainRuleException("lng", "Kinh độ nằm trong khoảng từ -180 đến 180.");
         EnsureThreshold(abandonedThresholdMinutes);
-        string[] normalizedIds = NormalizeZaloIds(zaloRecipientIds);
+        if (telegramChatId == 0) throw new DomainRuleException("telegramChatId", "chat_id Telegram phải là số nguyên khác 0 (group có giá trị âm).");
         bankAccountNo = NormalizeOptional(bankAccountNo, 50, "bankAccountNo");
         bankCode = NormalizeOptional(bankCode, 20, "bankCode");
         sepayAccountRef = NormalizeOptional(sepayAccountRef, 100, "sepayAccountRef");
         bool changed = Name != name || Address != address || Phone != phone || OpenTime != openTime || CloseTime != closeTime || IsActive != isActive ||
             Lat != lat || Lng != lng || AbandonedThresholdMinutes != abandonedThresholdMinutes ||
-            !ZaloRecipientIds.SequenceEqual(normalizedIds) || BankAccountNo != bankAccountNo || BankCode != bankCode || SepayAccountRef != sepayAccountRef || QrProvider != qrProvider;
+            TelegramChatId != telegramChatId || BankAccountNo != bankAccountNo || BankCode != bankCode || SepayAccountRef != sepayAccountRef || QrProvider != qrProvider;
         QrProvider = qrProvider;
         (Name, Address, Phone, OpenTime, CloseTime, IsActive) = (name, address, phone, openTime, closeTime, isActive);
-        (Lat, Lng, AbandonedThresholdMinutes, ZaloRecipientIds, BankAccountNo, BankCode, SepayAccountRef) =
-            (lat, lng, abandonedThresholdMinutes, [.. normalizedIds], bankAccountNo, bankCode, sepayAccountRef);
+        (Lat, Lng, AbandonedThresholdMinutes, TelegramChatId, BankAccountNo, BankCode, SepayAccountRef) =
+            (lat, lng, abandonedThresholdMinutes, telegramChatId, bankAccountNo, bankCode, sepayAccountRef);
         return changed;
     }
 
-    /// <summary>Quản lý chỉ sửa năm trường này; danh tính, vị trí, trạng thái và tài khoản nhận tiền chỉ Chủ sở hữu sửa.</summary>
-    public bool ApplyManagerSettings(string phone, TimeOnly openTime, TimeOnly closeTime, int abandonedThresholdMinutes,
-        IReadOnlyList<string> zaloRecipientIds)
+    /// <summary>Quản lý chỉ sửa bốn trường này; danh tính, vị trí, trạng thái, kênh Telegram và tài khoản nhận tiền chỉ Chủ sở hữu sửa.</summary>
+    public bool ApplyManagerSettings(string phone, TimeOnly openTime, TimeOnly closeTime, int abandonedThresholdMinutes)
     {
         phone = NormalizePhone(phone);
         EnsureOpensBeforeCloses(openTime, closeTime);
         EnsureThreshold(abandonedThresholdMinutes);
-        string[] normalizedIds = NormalizeZaloIds(zaloRecipientIds);
         bool changed = Phone != phone || OpenTime != openTime || CloseTime != closeTime ||
-            AbandonedThresholdMinutes != abandonedThresholdMinutes || !ZaloRecipientIds.SequenceEqual(normalizedIds);
-        (Phone, OpenTime, CloseTime, AbandonedThresholdMinutes, ZaloRecipientIds) =
-            (phone, openTime, closeTime, abandonedThresholdMinutes, [.. normalizedIds]);
+            AbandonedThresholdMinutes != abandonedThresholdMinutes;
+        (Phone, OpenTime, CloseTime, AbandonedThresholdMinutes) =
+            (phone, openTime, closeTime, abandonedThresholdMinutes);
         return changed;
     }
 
@@ -93,17 +91,6 @@ public sealed partial class Branch
     private static void EnsureThreshold(int abandonedThresholdMinutes)
     {
         if (abandonedThresholdMinutes is < 1 or > 1440) throw new DomainRuleException("abandonedThresholdMinutes", "Nhập số phút là số nguyên, tối thiểu 1.");
-    }
-
-    private static string[] NormalizeZaloIds(IReadOnlyList<string> zaloRecipientIds)
-    {
-        string[] normalizedIds = zaloRecipientIds.Select(value => value?.Trim() ?? "").ToArray();
-        if (normalizedIds.Length > 20 || normalizedIds.Any(value => value.Length is 0 or > 64))
-            throw new DomainRuleException("zaloRecipientIds", "Nhập tối đa 20 ID Zalo, mỗi ID từ 1 đến 64 ký tự.");
-        HashSet<string> uniqueIds = new(StringComparer.Ordinal);
-        foreach (string value in normalizedIds)
-            if (!uniqueIds.Add(value)) throw new DomainRuleException("zaloRecipientIds", $"ID Zalo bị trùng: {value}.");
-        return normalizedIds;
     }
 
     private static string? NormalizeOptional(string? value, int maxLength, string field)

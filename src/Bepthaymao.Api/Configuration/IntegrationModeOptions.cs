@@ -11,7 +11,7 @@ internal static class IntegrationModeSetup
 {
     public static IServiceCollection AddIntegrationModes(this IServiceCollection services, IConfiguration configuration)
     {
-        foreach (string name in new[] { "SePay", "Zalo" })
+        foreach (string name in new[] { "SePay", "Telegram" })
         {
             OptionsBuilder<IntegrationModeOptions> options = services.AddOptions<IntegrationModeOptions>(name)
                 .Bind(configuration.GetSection(name))

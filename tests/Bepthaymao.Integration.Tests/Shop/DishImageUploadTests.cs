@@ -7,7 +7,8 @@ using Bepthaymao.Integration.Tests.Infrastructure;
 namespace Bepthaymao.Integration.Tests.Shop;
 
 /// <summary>Owner tải ảnh món (D-10): server đặt tên, mã hóa lại thành WebP và phục vụ tĩnh ở /media/mon/.</summary>
-public sealed class DishImageUploadTests(InfrastructureFixture infrastructure) : IClassFixture<InfrastructureFixture>, IAsyncLifetime
+[Collection(SharedInfrastructure.Name)]
+public sealed class DishImageUploadTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
     private AuthWorld _world = null!;
 

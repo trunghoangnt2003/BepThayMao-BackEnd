@@ -24,15 +24,15 @@ public sealed record BranchOwnerSettingsRequest(
     [property: JsonRequired] string OpenTime,
     [property: JsonRequired] string CloseTime,
     [property: JsonRequired] int AbandonedThresholdMinutes,
-    [property: JsonRequired] IReadOnlyList<string> ZaloRecipientIds,
     [property: JsonRequired] bool IsActive,
     string? BankAccountNo = null,
     string? BankCode = null,
     string? SepayAccountRef = null,
-    QrProvider QrProvider = QrProvider.VietQR)
+    QrProvider QrProvider = QrProvider.VietQR,
+    long? TelegramChatId = null)
 {
     internal BranchOwnerSettingsData ToData() => new(Name, Address, Phone, Lat, Lng, OpenTime, CloseTime,
-        AbandonedThresholdMinutes, ZaloRecipientIds, BankAccountNo, BankCode, SepayAccountRef, IsActive, QrProvider);
+        AbandonedThresholdMinutes, BankAccountNo, BankCode, SepayAccountRef, IsActive, QrProvider, TelegramChatId);
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]

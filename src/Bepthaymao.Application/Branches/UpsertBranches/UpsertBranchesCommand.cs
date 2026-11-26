@@ -7,7 +7,7 @@ using FluentValidation;
 namespace Bepthaymao.Application.Branches.UpsertBranches;
 
 public sealed record BranchUpsertItem(Guid Id, string Name, string Address, string Phone, string OpenTime, string CloseTime, bool IsActive,
-    double Lat = 0, double Lng = 0, int AbandonedThresholdMinutes = 10, IReadOnlyList<string>? ZaloRecipientIds = null,
+    double Lat = 0, double Lng = 0, int AbandonedThresholdMinutes = 10, long? TelegramChatId = null,
     string? BankAccountNo = null, string? BankCode = null, string? SepayAccountRef = null, string? ManagerIdentifier = null);
 public sealed record UpsertBranchesCommand(Guid OwnerId, IReadOnlyList<BranchUpsertItem> Branches) : ICommand<UpsertBranchesResult>;
 public sealed record UpsertBranchesResult(int Inserted, int Updated, int Unchanged);
@@ -32,9 +32,8 @@ internal sealed class UpsertBranchesCommandValidator : AbstractValidator<UpsertB
                 .WithMessage("Kinh độ nằm trong khoảng từ -180 đến 180.").OverridePropertyName("lng");
             item.RuleFor(value => value.AbandonedThresholdMinutes).InclusiveBetween(1, 1440)
                 .WithMessage("Nhập số phút là số nguyên, tối thiểu 1.").OverridePropertyName("abandonedThresholdMinutes");
-            item.RuleFor(value => value.ZaloRecipientIds).Must(ids => ids is null || (ids.Count <= 20 &&
-                ids.All(id => !string.IsNullOrWhiteSpace(id) && id.Trim().Length <= 64) &&
-                ids.Select(id => id.Trim()).Distinct(StringComparer.Ordinal).Count() == ids.Count)).OverridePropertyName("zaloRecipientIds");
+            item.RuleFor(value => value.TelegramChatId).Must(id => id is null || id != 0)
+                .WithMessage("chat_id Telegram phải là số nguyên khác 0.").OverridePropertyName("telegramChatId");
             item.RuleFor(value => value.BankAccountNo).Must(value => value is null || value.Trim().Length <= 50).OverridePropertyName("bankAccountNo");
             item.RuleFor(value => value.BankCode).Must(value => value is null || value.Trim().Length <= 20).OverridePropertyName("bankCode");
             item.RuleFor(value => value.SepayAccountRef).Must(value => value is null || value.Trim().Length <= 100).OverridePropertyName("sepayAccountRef");
@@ -70,7 +69,7 @@ internal sealed class UpsertBranchesCommandHandler(IBranchRepository repository,
             if (branch is not null && branch.OwnerId != command.OwnerId)
                 throw new DomainRuleException("ownerId", "Cơ sở không thuộc Chủ sở hữu này.");
             BranchDetails details = new(item.Name, item.Address, item.Phone, item.Lat, item.Lng, open, close,
-                item.AbandonedThresholdMinutes, item.ZaloRecipientIds ?? [], item.BankAccountNo, item.BankCode, item.SepayAccountRef, item.IsActive);
+                item.AbandonedThresholdMinutes, item.TelegramChatId, item.BankAccountNo, item.BankCode, item.SepayAccountRef, item.IsActive);
             if (branch is null)
             {
                 repository.Add(Branch.Create(item.Id, command.OwnerId, details, clock.GetUtcNow()));

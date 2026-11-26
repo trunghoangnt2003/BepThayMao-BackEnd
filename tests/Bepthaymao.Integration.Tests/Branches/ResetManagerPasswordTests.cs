@@ -7,7 +7,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bepthaymao.Integration.Tests.Branches;
 
-public sealed class ResetManagerPasswordTests(InfrastructureFixture infrastructure) : IClassFixture<InfrastructureFixture>
+[Collection(SharedInfrastructure.Name)]
+public sealed class ResetManagerPasswordTests(InfrastructureFixture infrastructure)
 {
     private const string _newPassword = "mat-khau-moi-12";
     private static string ResetPath(Guid branchId) => $"/api/v1/owner/branches/{branchId}/manager/reset-password";
@@ -76,7 +77,7 @@ public sealed class ResetManagerPasswordTests(InfrastructureFixture infrastructu
         await world.WithDbAsync(async db =>
         {
             db.Branches.Add(Branch.Create(managerless, world.Owner1Id,
-                new("Cơ sở chưa có quản lý", "2 Đường Thử", "0901234567", 10.77, 106.7, new(6, 0), new(21, 30), 10, [], null, null, null, true), DateTimeOffset.UtcNow));
+                new("Cơ sở chưa có quản lý", "2 Đường Thử", "0901234567", 10.77, 106.7, new(6, 0), new(21, 30), 10, null, null, null, null, true), DateTimeOffset.UtcNow));
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
             return 0;
         });

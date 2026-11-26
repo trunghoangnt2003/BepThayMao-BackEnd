@@ -16,7 +16,7 @@ internal sealed class UpdateManagerBranchSettingsCommandValidator : AbstractVali
     public UpdateManagerBranchSettingsCommandValidator()
     {
         RuleFor(command => command.Settings).NotNull().WithMessage("Thiếu thông số cơ sở.");
-        // Thân yêu cầu là phẳng nên khóa lỗi cũng phẳng (openTime, zaloRecipientIds...), không có tiền tố settings.
+        // Thân yêu cầu là phẳng nên khóa lỗi cũng phẳng (openTime, phone...), không có tiền tố settings.
         RuleFor(command => command.Settings).Custom((settings, context) =>
         {
             if (settings is null) return;
@@ -36,7 +36,7 @@ internal sealed class UpdateManagerBranchSettingsCommandHandler(ICurrentUser cur
         BranchSettingsData settings = command.Settings;
         // Chỉ năm trường của BranchSettings; danh tính, vị trí, trạng thái và tài khoản nhận tiền không có đường vào đây.
         branch.ApplyManagerSettings(settings.Phone, BranchSettingsPatterns.ParseTime(settings.OpenTime),
-            BranchSettingsPatterns.ParseTime(settings.CloseTime), settings.AbandonedThresholdMinutes, settings.ZaloRecipientIds);
+            BranchSettingsPatterns.ParseTime(settings.CloseTime), settings.AbandonedThresholdMinutes);
         return ManagerBranchView.From(branch);
     }
 }

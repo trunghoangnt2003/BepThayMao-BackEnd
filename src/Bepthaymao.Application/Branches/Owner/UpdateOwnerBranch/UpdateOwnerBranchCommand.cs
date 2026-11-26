@@ -40,7 +40,7 @@ internal sealed class UpdateOwnerBranchCommandHandler(ICurrentUser currentUser, 
         BranchOwnerSettingsData data = command.Branch;
         branch.ApplyOwnerDetails(new(data.Name, data.Address, data.Phone, data.Lat, data.Lng,
             BranchSettingsPatterns.ParseTime(data.OpenTime), BranchSettingsPatterns.ParseTime(data.CloseTime),
-            data.AbandonedThresholdMinutes, data.ZaloRecipientIds, data.BankAccountNo, data.BankCode, data.SepayAccountRef, data.IsActive, data.QrProvider));
+            data.AbandonedThresholdMinutes, data.TelegramChatId, data.BankAccountNo, data.BankCode, data.SepayAccountRef, data.IsActive, data.QrProvider));
         // Lưu trước rồi đọc lại để phản hồi mang tên đăng nhập quản lý và đúng dữ liệu đã ghi.
         await unitOfWork.SaveChangesAsync(cancellationToken);
         OwnerBranchView saved = await reader.GetAsync(command.BranchId, cancellationToken) ?? throw new NotFoundException();

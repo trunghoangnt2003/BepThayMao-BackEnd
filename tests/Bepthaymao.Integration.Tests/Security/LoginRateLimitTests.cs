@@ -11,7 +11,8 @@ using Bepthaymao.Api.Security;
 
 namespace Bepthaymao.Integration.Tests.Security;
 
-public sealed class LoginRateLimitTests(InfrastructureFixture infrastructure) : IClassFixture<InfrastructureFixture>
+[Collection(SharedInfrastructure.Name)]
+public sealed class LoginRateLimitTests(InfrastructureFixture infrastructure)
 {
     [Fact]
     public async Task IpPolicyReturns429ProblemDetails()

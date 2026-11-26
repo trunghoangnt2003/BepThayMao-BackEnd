@@ -809,6 +809,105 @@
         ]
       }
     },
+    "/api/v1/manager/orders/{orderId}/status": {
+      "post": {
+        "tags": [
+          "Manager"
+        ],
+        "summary": "Chuyển trạng thái đơn (nhận, đang làm, giao, hoàn tất, hủy)",
+        "description": "Chỉ chuyển bước kế tiếp Paid→Accepted→Preparing→Delivering→Completed; hủy được từ PendingPayment, Paid, Accepted (D-21); lùi, nhảy bước hoặc lặp trạng thái hiện tại trả 409 (D-12). Đơn ngoài cơ sở trong claim trả 404.",
+        "operationId": "changeOrderStatus",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeOrderStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ]
+      }
+    },
     "/api/v1/owner/orders": {
       "get": {
         "tags": [
@@ -879,6 +978,105 @@
           },
           "403": {
             "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ]
+      }
+    },
+    "/api/v1/owner/orders/{orderId}/status": {
+      "post": {
+        "tags": [
+          "Owner"
+        ],
+        "summary": "Chuyển trạng thái đơn ở mọi cơ sở mình sở hữu (nhận, đang làm, giao, hoàn tất, hủy)",
+        "description": "Cùng quy tắc bước với route Manager (D-15a); đơn của Owner khác trả 404.",
+        "operationId": "changeOwnerOrderStatus",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeOrderStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1229,6 +1427,147 @@
           },
           "403": {
             "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ]
+      }
+    },
+    "/api/v1/manager/notifications": {
+      "get": {
+        "tags": [
+          "Manager"
+        ],
+        "summary": "Thông báo in-app của cơ sở mình (mới nhất trước, 20 dòng/trang)",
+        "description": "D-23: chỉ trả thông báo kênh InApp thuộc cơ sở trong claim của Manager, không chứa PII.",
+        "operationId": "listManagerNotifications",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ]
+      }
+    },
+    "/api/v1/owner/notifications": {
+      "get": {
+        "tags": [
+          "Owner"
+        ],
+        "summary": "Thông báo in-app của mọi cơ sở mình sở hữu (mới nhất trước, 20 dòng/trang)",
+        "description": "D-23: trả thông báo của mọi cơ sở Owner sở hữu (hoặc lọc theo branchId), gồm cả cảnh báo TelegramMisconfigured, không chứa PII.",
+        "operationId": "listOwnerNotifications",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3173,7 +3512,6 @@
           "openTime",
           "closeTime",
           "abandonedThresholdMinutes",
-          "zaloRecipientIds",
           "isActive"
         ],
         "type": "object",
@@ -3205,12 +3543,6 @@
             "type": "integer",
             "format": "int32"
           },
-          "zaloRecipientIds": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
           "isActive": {
             "type": "boolean"
           },
@@ -3234,6 +3566,13 @@
           },
           "qrProvider": {
             "$ref": "#/components/schemas/QrProvider"
+          },
+          "telegramChatId": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int64"
           }
         },
         "additionalProperties": false
@@ -3250,7 +3589,7 @@
           "openTime",
           "closeTime",
           "abandonedThresholdMinutes",
-          "zaloRecipientIds",
+          "telegramChatId",
           "bankAccountNo",
           "bankCode",
           "sepayAccountRef",
@@ -3292,11 +3631,12 @@
             "type": "integer",
             "format": "int32"
           },
-          "zaloRecipientIds": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
+          "telegramChatId": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int64"
           },
           "bankAccountNo": {
             "type": [
@@ -3332,8 +3672,7 @@
           "phone",
           "openTime",
           "closeTime",
-          "abandonedThresholdMinutes",
-          "zaloRecipientIds"
+          "abandonedThresholdMinutes"
         ],
         "type": "object",
         "properties": {
@@ -3349,16 +3688,10 @@
           "abandonedThresholdMinutes": {
             "type": "integer",
             "format": "int32"
-          },
-          "zaloRecipientIds": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
           }
         },
         "additionalProperties": false,
-        "description": "Đúng năm trường Quản lý được sửa; thành viên khác (name, isActive, lat, ngân hàng...) bị từ chối bằng 400."
+        "description": "Đúng bốn trường Quản lý được sửa; thành viên khác (name, isActive, lat, telegramChatId, ngân hàng...) bị từ chối bằng 400."
       },
       "CancellationKind": {
         "enum": [
@@ -3378,6 +3711,44 @@
             "type": "string"
           },
           "phone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "CancelReasonCode": {
+        "enum": [
+          "OutOfStock",
+          "CustomerRequested",
+          "CustomerUnreachable",
+          "OutOfDeliveryArea",
+          "Other",
+          null
+        ]
+      },
+      "ChangeOrderStatusRequest": {
+        "required": [
+          "to"
+        ],
+        "type": "object",
+        "properties": {
+          "to": {
+            "$ref": "#/components/schemas/OrderStatus"
+          },
+          "reasonCode": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CancelReasonCode"
+              }
+            ]
+          },
+          "reason": {
             "type": [
               "null",
               "string"
@@ -3720,7 +4091,6 @@
           "openTime",
           "closeTime",
           "abandonedThresholdMinutes",
-          "zaloRecipientIds",
           "name",
           "address",
           "isActive",
@@ -3742,12 +4112,6 @@
           "abandonedThresholdMinutes": {
             "type": "integer",
             "format": "int32"
-          },
-          "zaloRecipientIds": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
           },
           "name": {
             "type": "string"
@@ -3924,6 +4288,90 @@
           }
         }
       },
+      "NotificationChannel": {
+        "enum": [
+          "InApp",
+          "Telegram"
+        ]
+      },
+      "NotificationDto": {
+        "required": [
+          "id",
+          "type",
+          "channel",
+          "status",
+          "attempts",
+          "branchId",
+          "orderId",
+          "orderCode",
+          "waitedMinutes",
+          "createdAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "$ref": "#/components/schemas/NotificationType"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/NotificationChannel"
+          },
+          "status": {
+            "$ref": "#/components/schemas/NotificationStatus"
+          },
+          "attempts": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "orderId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "orderCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "waitedMinutes": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "NotificationStatus": {
+        "enum": [
+          "Pending",
+          "Sent",
+          "Failed",
+          "Skipped"
+        ]
+      },
+      "NotificationType": {
+        "enum": [
+          "OrderNew",
+          "OrderCancelled",
+          "AbandonedAlert",
+          "TelegramMisconfigured"
+        ]
+      },
       "OrderCreatedDto": {
         "required": [
           "order",
@@ -4070,6 +4518,50 @@
             "type": "integer",
             "format": "int64",
             "default": 0
+          },
+          "paidRecordedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "acceptedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "abandonedAlertedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "cancelReasonCode": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CancelReasonCode"
+              }
+            ]
+          },
+          "cancelReason": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

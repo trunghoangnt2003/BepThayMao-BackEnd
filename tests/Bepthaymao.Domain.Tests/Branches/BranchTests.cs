@@ -73,12 +73,12 @@ public sealed class BranchTests
     }
 
     [Fact]
-    public void RejectsInvalidZaloRecipientsAfterTrimming()
+    public void RejectsZeroTelegramChatIdWithoutChangingState()
     {
-        foreach (string[] ids in new[] { new[] { " " }, [new string('a', 65)], Enumerable.Range(0, 21).Select(index => index.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray() })
-            Assert.Equal("zaloRecipientIds", Assert.Throws<DomainRuleException>(() => CreateWith(Details() with { ZaloRecipientIds = ids })).Rule);
-        DomainRuleException duplicate = Assert.Throws<DomainRuleException>(() => CreateWith(Details() with { ZaloRecipientIds = [" id ", "id"] }));
-        Assert.Equal("ID Zalo bị trùng: id.", duplicate.Message);
+        Branch branch = CreateWith(Details() with { TelegramChatId = -1001234567890L });
+        Assert.Equal(-1001234567890L, branch.TelegramChatId);
+        Assert.Equal("telegramChatId", Assert.Throws<DomainRuleException>(() => branch.ApplyOwnerDetails(Details() with { TelegramChatId = 0 })).Rule);
+        Assert.Equal(-1001234567890L, branch.TelegramChatId);
     }
 
     [Fact]
@@ -95,21 +95,21 @@ public sealed class BranchTests
     }
 
     [Fact]
-    public void ApplyManagerSettingsChangesOnlyTheFiveAllowedFields()
+    public void ApplyManagerSettingsChangesOnlyTheFourAllowedFields()
     {
-        Branch branch = CreateWith(Details() with { Lat = 11, Lng = 107, BankAccountNo = "0123456789", BankCode = "VCB", SepayAccountRef = "ref-1", IsActive = false });
-        Assert.True(branch.ApplyManagerSettings(" 0912 345.678 ", new(7, 0), new(20, 0), 15, [" zalo-a ", "zalo-b"]));
+        Branch branch = CreateWith(Details() with { Lat = 11, Lng = 107, TelegramChatId = -1001234567890L, BankAccountNo = "0123456789", BankCode = "VCB", SepayAccountRef = "ref-1", IsActive = false });
+        Assert.True(branch.ApplyManagerSettings(" 0912 345.678 ", new(7, 0), new(20, 0), 15));
         Assert.Equal("0912345678", branch.Phone);
         Assert.Equal(new TimeOnly(7, 0), branch.OpenTime);
         Assert.Equal(new TimeOnly(20, 0), branch.CloseTime);
         Assert.Equal(15, branch.AbandonedThresholdMinutes);
-        Assert.Equal(["zalo-a", "zalo-b"], branch.ZaloRecipientIds);
+        Assert.Equal(-1001234567890L, branch.TelegramChatId);
         Assert.Equal("Mẫu", branch.Name);
         Assert.Equal("Địa chỉ", branch.Address);
         Assert.Equal((11d, 107d), (branch.Lat, branch.Lng));
         Assert.Equal(("0123456789", "VCB", "ref-1"), (branch.BankAccountNo, branch.BankCode, branch.SepayAccountRef));
         Assert.False(branch.IsActive);
-        Assert.False(branch.ApplyManagerSettings("0912345678", new(7, 0), new(20, 0), 15, ["zalo-a", "zalo-b"]));
+        Assert.False(branch.ApplyManagerSettings("0912345678", new(7, 0), new(20, 0), 15));
     }
 
     [Theory]
@@ -121,17 +121,8 @@ public sealed class BranchTests
     public void ApplyManagerSettingsRejectsInvalidValuesWithoutChangingState(string phone, int openHour, int closeHour, int threshold, string rule)
     {
         Branch branch = CreateWith(Details());
-        Assert.Equal(rule, Assert.Throws<DomainRuleException>(() => branch.ApplyManagerSettings(phone, new(openHour, 0), new(closeHour, 0), threshold, [])).Rule);
+        Assert.Equal(rule, Assert.Throws<DomainRuleException>(() => branch.ApplyManagerSettings(phone, new(openHour, 0), new(closeHour, 0), threshold)).Rule);
         Assert.Equal(("0901234567", new TimeOnly(6, 0), new TimeOnly(21, 30), 10), (branch.Phone, branch.OpenTime, branch.CloseTime, branch.AbandonedThresholdMinutes));
-    }
-
-    [Fact]
-    public void ApplyManagerSettingsRejectsDuplicateAndOversizedZaloRecipients()
-    {
-        Branch branch = CreateWith(Details());
-        Assert.Equal("zaloRecipientIds", Assert.Throws<DomainRuleException>(() => branch.ApplyManagerSettings("0901234567", new(6, 0), new(21, 30), 10, [" id ", "id"])).Rule);
-        Assert.Equal("zaloRecipientIds", Assert.Throws<DomainRuleException>(() => branch.ApplyManagerSettings("0901234567", new(6, 0), new(21, 30), 10, [new string('a', 65)])).Rule);
-        Assert.Empty(branch.ZaloRecipientIds);
     }
 
     private static Branch CreateWith(BranchDetails details) => Branch.Create(Guid.CreateVersion7(), Guid.CreateVersion7(), details, DateTimeOffset.UtcNow);
@@ -140,5 +131,5 @@ public sealed class BranchTests
         Branch.Create(Guid.CreateVersion7(), Guid.CreateVersion7(), Details(name, address, phone), DateTimeOffset.Now);
 
     private static BranchDetails Details(string name = "Mẫu", string address = "Địa chỉ", string phone = "0901234567") =>
-        new(name, address, phone, 10, 106, new(6, 0), new(21, 30), 10, [], null, null, null, true);
+        new(name, address, phone, 10, 106, new(6, 0), new(21, 30), 10, null, null, null, null, true);
 }

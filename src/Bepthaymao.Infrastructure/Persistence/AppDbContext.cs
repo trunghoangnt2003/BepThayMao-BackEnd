@@ -44,6 +44,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataSc
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<InboxMessage> InboxMessages => Set<InboxMessage>();
     public DbSet<OperationalAlert> OperationalAlerts => Set<OperationalAlert>();
+    public DbSet<Notification> Notifications => Set<Notification>();
     public const string BranchScope = "BranchScope";
 
     // Owner là superadmin trên cơ sở của mình (spec FR-003a): thấy bản ghi của mọi cơ sở có Branch.OwnerId trùng claim,
@@ -116,7 +117,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataSc
             branch.Property(value => value.Phone).HasMaxLength(20);
             branch.HasOne<Owner>().WithMany().HasForeignKey(value => value.OwnerId).OnDelete(DeleteBehavior.Restrict);
             branch.Property(value => value.AbandonedThresholdMinutes).HasDefaultValue(10);
-            branch.Property(value => value.ZaloRecipientIds).HasColumnType("text[]").HasDefaultValueSql("'{}'::text[]");
+            branch.Property(value => value.TelegramChatId).HasColumnName("telegram_chat_id");
             branch.Property(value => value.BankAccountNo).HasMaxLength(50);
             branch.Property(value => value.BankCode).HasMaxLength(20);
             branch.Property(value => value.SepayAccountRef).HasMaxLength(100);
@@ -194,12 +195,15 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataSc
             order.Property(value => value.Note).HasMaxLength(500);
             order.Property(value => value.CancelReason).HasMaxLength(Order.CancelReasonMaxLength);
             order.Property(value => value.CancellationKind).HasConversion<string>().HasMaxLength(20);
+            order.Property(value => value.CancelReasonCode).HasConversion<string>().HasMaxLength(32);
+            order.Ignore(value => value.LastTransitionAt);
             order.Property(value => value.Status).HasConversion<string>().HasMaxLength(20);
             order.Property(value => value.PaymentStatus).HasConversion<string>().HasMaxLength(20);
             order.Property(value => value.DedupeHash).HasMaxLength(64).HasDefaultValue("");
             order.HasOne<Branch>().WithMany().HasForeignKey(value => value.BranchId).OnDelete(DeleteBehavior.Restrict);
             order.HasIndex(value => new { value.BranchId, value.Status, value.CreatedAt });
             order.HasIndex(value => new { value.Status, value.ExpiresAt });
+            order.HasIndex(value => new { value.Status, value.AbandonedAlertedAt, value.PaidRecordedAt }).HasDatabaseName("ix_orders_abandoned_scan");
             order.HasIndex(value => value.IdempotencyKey).IsUnique().HasFilter("idempotency_key IS NOT NULL");
             order.HasIndex(value => new { value.DedupeHash, value.CreatedAt });
             order.HasMany(value => value.Items).WithOne().HasForeignKey(item => item.OrderId).OnDelete(DeleteBehavior.Cascade);
@@ -235,6 +239,21 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataSc
         builder.Entity<OperationalAlert>().HasQueryFilter(BranchScope, value => IsSystemScope
             || (CurrentBranchId != null && value.BranchId == CurrentBranchId)
             || (CurrentOwnerId != null && Branches.Any(branch => branch.Id == value.BranchId && branch.OwnerId == CurrentOwnerId)));
+        builder.Entity<Notification>(notification =>
+        {
+            notification.ToTable("notifications");
+            notification.HasKey(value => value.Id);
+            notification.Property(value => value.Type).HasConversion<string>().HasMaxLength(32);
+            notification.Property(value => value.Channel).HasConversion<string>().HasMaxLength(16);
+            notification.Property(value => value.Status).HasConversion<string>().HasMaxLength(16);
+            notification.Property(value => value.OrderCode).HasMaxLength(32);
+            notification.Property(value => value.LastError).HasMaxLength(300);
+            notification.HasIndex(value => new { value.BranchId, value.CreatedAt });
+            notification.HasIndex(value => new { value.Channel, value.CreatedAt });
+            notification.HasQueryFilter(BranchScope, value => IsSystemScope
+                || (CurrentBranchId != null && value.BranchId == CurrentBranchId)
+                || (CurrentOwnerId != null && Branches.Any(branch => branch.Id == value.BranchId && branch.OwnerId == CurrentOwnerId)));
+        });
         builder.Entity<OrderItem>(item =>
         {
             item.ToTable("order_items", table => table.HasCheckConstraint("ck_order_items_quantity", "quantity BETWEEN 1 AND 99"));
@@ -280,7 +299,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataSc
             }
             if (entry.State != EntityState.Modified || !entry.Property(value => value.Status).IsModified) continue;
             if (order.Status == OrderStatus.Paid || order.CancellationKind == CancellationKind.Expired) continue;
-            DateTimeOffset at = order.CancelledAt ?? DateTimeOffset.UtcNow;
+            DateTimeOffset at = order.LastTransitionAt ?? order.CancelledAt ?? DateTimeOffset.UtcNow;
             AddOrderEvent("order.status_changed", at, new
             {
                 orderId = order.Id,

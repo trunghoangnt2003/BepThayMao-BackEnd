@@ -9,7 +9,8 @@ using Microsoft.IdentityModel.JsonWebTokens;
 
 namespace Bepthaymao.Integration.Tests.Branches;
 
-public sealed class CreateBranchTests(InfrastructureFixture infrastructure) : IClassFixture<InfrastructureFixture>
+[Collection(SharedInfrastructure.Name)]
+public sealed class CreateBranchTests(InfrastructureFixture infrastructure)
 {
     private const string _managerPassword = "mat-khau-quan-ly-12";
 
@@ -25,7 +26,6 @@ public sealed class CreateBranchTests(InfrastructureFixture infrastructure) : IC
             openTime = "06:00",
             closeTime = "21:30",
             abandonedThresholdMinutes = 10,
-            zaloRecipientIds = new[] { "zalo-1" },
             isActive = true,
         },
         manager = new { identifier = managerIdentifier, password = _managerPassword },
@@ -43,6 +43,7 @@ public sealed class CreateBranchTests(InfrastructureFixture infrastructure) : IC
         Guid branchId = body.RootElement.GetProperty("id").GetGuid();
         Assert.Equal($"/api/v1/owner/branches/{branchId}", created.Headers.Location?.OriginalString);
         Assert.Equal("quanly-moi", body.RootElement.GetProperty("managerIdentifier").GetString());
+        Assert.Equal(JsonValueKind.Null, body.RootElement.GetProperty("telegramChatId").ValueKind);
         Assert.DoesNotContain("password", createdText, StringComparison.OrdinalIgnoreCase);
 
         using HttpClient anonymous = world.Factory.CreateClient();
@@ -102,7 +103,7 @@ public sealed class CreateBranchTests(InfrastructureFixture infrastructure) : IC
     [InlineData("branch", "phone", "\"12345\"", "branch.phone")]
     [InlineData("branch", "lat", "91", "branch.lat")]
     [InlineData("branch", "abandonedThresholdMinutes", "0", "branch.abandonedThresholdMinutes")]
-    [InlineData("branch", "zaloRecipientIds", "[\"a\",\"a\"]", "branch.zaloRecipientIds")]
+    [InlineData("branch", "telegramChatId", "0", "branch.telegramChatId")]
     [InlineData("manager", "password", "\"123456789\"", "manager.password")]
     [InlineData("manager", "identifier", "\"co khoang trang\"", "manager.identifier")]
     public async Task InvalidBodyReturnsCamelCaseErrors(string section, string field, string json, string expectedKey)
